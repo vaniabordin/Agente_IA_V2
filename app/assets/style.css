@@ -1,0 +1,168 @@
+/* ====================================================== */
+/* 1. LAYOUT GERAL E CORES DE FUNDO (Ajuste da Sidebar) */
+/* ====================================================== */
+
+section[data-testid="stSidebar"] {
+    background-color: #113140 !important; 
+    border-right: 2px solid #00a9b0;
+}
+
+/* Alterado: Removi o !important daqui para permitir que o chat mude a cor depois */
+section[data-testid="stSidebar"] * {
+    color: white; 
+}
+
+/* Mantive seus ajustes de logo e topo */
+[data-testid="stSidebarUserContent"] {
+    padding-top: 0.5rem !important;
+}
+
+section[data-testid="stSidebar"] img {
+   max-height: 3.5rem !important; /* Altura ideal para visualização */
+    width: auto !important;     
+    margin-bottom: 0.5rem !important;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+/* ====================================================== */
+/* 2. CHAT DE SUPORTE (st.chat_message) */
+/* ====================================================== */
+
+/* Reforcei este seletor para ganhar da regra global */
+section[data-testid="stSidebar"] [data-testid="stChatMessage"] p,
+section[data-testid="stSidebar"] [data-testid="stChatMessage"] div {
+    color: #113140 !important; 
+    font-weight: 500;
+}
+
+[data-testid="stChatMessage"] {
+    background-color: #f0f2f6 !important;
+    border: 1px solid #00a9b0;
+}
+
+/* Fundo das mensagens (Cores mantidas) */
+[data-testid="stChatMessage"]:has([data-testid="stMarkdownContainer"]):nth-child(even) {
+    background-color: #f0f2f6 !important; 
+}
+
+[data-testid="stChatMessage"]:has([data-testid="stMarkdownContainer"]):nth-child(odd) {
+    background-color: #e6f7f7 !important; 
+}
+
+/* ====================================================== */
+/* 3. BOTÕES GERAIS E NAVEGAÇÃO */
+/* ====================================================== */
+
+/* Botões gerais - FCJ */
+div.stButton > button[kind="primary"] {
+    background-color: #00a9b0 !important; /* Turquesa FCJ */
+    color: white !important;
+    border: none !important;
+    font-weight: bold !important;
+    height: 45px !important;
+    border-radius: 8px !important;
+    transition: 0.3s;
+}
+
+div.stButton > button[kind="primary"]:hover {
+    background-color: #008f95 !important;
+    transform: translateY(-2px);
+}
+
+/* Estilo para botões secundários (Esqueci Senha / Voltar) */
+div.stButton > button[kind="secondary"] {
+    border: 1px solid #113140 !important;
+    color: #113140 !important;
+    border-radius: 8px !important;
+}
+
+.stButton.centered-button button {
+    min-width: 180px !important;
+    width: auto !important;
+    margin: 0 auto !important;
+    display: block !important;
+}
+
+/* Cabeçalho customizado para a tela de login */
+.login-header {
+    color: #113140;
+    text-align: center;
+    font-weight: bold;
+    margin-bottom: 20px;
+}
+
+/* Cores por coluna (Paleta de variações do Turquesa FCJ) */
+/* Coluna 1 - Turquesa Suave */
+div[data-testid="column"]:nth-of-type(1) .stButton > button {
+    background-color: #4dbdc2 !important;
+    border: 1px solid #00a9b0 !important;
+}
+
+/* Coluna 2 - Turquesa Médio */
+div[data-testid="column"]:nth-of-type(2) .stButton > button {
+    background-color: #26b6bc !important;
+}
+
+/* Coluna 3 - Turquesa Original */
+div[data-testid="column"]:nth-of-type(3) .stButton > button {
+    background-color: #00a9b0 !important;
+}
+
+/* Coluna 4 - Turquesa Escuro */
+div[data-testid="column"]:nth-of-type(4) .stButton > button {
+    background-color: #008c91 !important;
+}
+
+/* Títulos gerais do app (Azul Escuro FCJ ou Turquesa) */
+h1, h2, h3, h4, h5, h6 {
+    color: #113140 !important; /* Títulos em azul escuro para melhor leitura no fundo branco */
+    font-weight: 600;
+}
+
+/* Ajuste específico para o título principal se quiser turquesa */
+h1 {
+    color: #00a9b0 !important;
+}
+
+.stDivider {
+    border-bottom: 2px solid #f0f2f6 !important;
+}
+
+/* Garante que o balão de mensagem cresça conforme o texto */
+.stChatMessage {
+    height: auto !important;
+    min-height: fit-content !important;
+    max-height: none !important;
+    overflow: visible !important;
+}
+
+/* Ajuste específico para a barra lateral se o chat estiver lá */
+[data-testid="stSidebar"] .stChatMessage {
+    padding: 10px !important;
+    margin-bottom: 8px !important;
+}
+
+/* Remove qualquer limite de altura das colunas de chat */
+[data-testid="stChatMessageContent"] {
+    overflow-wrap: break-word !important;
+}
+
+/* Força a exibição de todo o conteúdo na barra lateral */
+[data-testid="stSidebarUserContent"] {
+    overflow: visible !important;
+}
+
+/* Garante que o container interno das mensagens não limite a altura */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    height: auto !important;
+}
+
+/* Espaço extra no final da lista de mensagens para não sobrepor o input */
+[data-testid="stSidebar"] .stChatMessage:last-child {
+    margin-bottom: 50px !important;
+}
+
+h3 {
+    color: #00a9b0 !important; 
+}

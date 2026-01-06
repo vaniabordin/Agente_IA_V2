@@ -1,0 +1,205 @@
+import streamlit as st
+import os
+import json
+import plotly.graph_objects as go
+from utils.db import (
+    conectar, verificar_etapa_concluida, salvar_conclusao_etapa, 
+    salvar_entrega_e_feedback, buscar_ultimo_feedback_ia
+)
+from utils.ia_chat import analisar_documento_ia, mentoria_ia_sidebar
+from utils.ui import aplicar_estilo_fcj, criar_grafico_circular
+from utils.menu import renderizar_menu
+
+# --- 1. CONFIGURAÇÃO E SEGURANÇA --- #
+st.set_page_config(
+    page_title="Template Q2 - FCJ",
+    layout="wide"
+)
+
+# Bloqueio de acesso se não estiver logado
+if st.session_state.get("usuario_id") is None:
+    st.switch_page("Home.py") 
+    st.stop()
+
+# DEFINIÇÃO DE ID DA PÁGINA (Fundamental para evitar o erro DuplicateElementKey na sidebar)
+st.session_state["current_page"] = "q2" 
+
+# CSS para interface limpa e consistente
+st.markdown("""
+    <style>
+        [data-testid="stHeaderNav"] {display: none !important;}
+        [data-testid="stSidebarNav"] {display: none !important;}
+        .block-container {padding-top: 1.5rem;}
+        .stExpander {border: 1px solid #dee2e6; border-radius: 10px; margin-bottom: 1rem;}
+    </style>
+""", unsafe_allow_html=True)
+
+aplicar_estilo_fcj()
+renderizar_menu()
+mentoria_ia_sidebar()
+
+# --- 2. VALIDAÇÃO DE ACESSO (TRAVA Q1) --- #
+def validar_acesso_q2(user_id):
+    conn = conectar()
+    if not conn: return False
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT nome_formulario FROM arquivos_templates WHERE template = 'Q1' AND status = 'ativo'")
+        etapas_q1 = cursor.fetchall()
+        for etapa in etapas_q1:
+            if not verificar_etapa_concluida(user_id, etapa['nome_formulario']):
+                return False
+        return True
+    finally:
+        conn.close()
+
+if not validar_acesso_q2(st.session_state.get("usuario_id")):
+    st.warning("⚠️ Acesso Bloqueado: Você precisa concluir 100% das etapas do Q1 antes de iniciar o Q2.")
+    if st.button("⬅️ Voltar para o Q1"):
+        st.switch_page("pages/Trimestre Q1.py")
+    st.stop()
+
+# --- 3. PÁGINA PRINCIPAL Q2 --- #
+def Q2_page():
+    st.title("Q2 - Tração: Execução de Canal e Validação de Aquisição")
+    
+    user_id = st.session_state.get("usuario_id")
+    conn = conectar()
+    if not conn: return
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT id, nome_formulario, caminho_arquivo, nome_arquivo_original 
+            FROM arquivos_templates 
+            WHERE template = 'Q2' AND status = 'ativo' 
+            ORDER BY id ASC
+        """)
+        templates = cursor.fetchall()
+
+        if not templates:
+            st.info("Nenhum formulário Q2 disponível no momento.")
+            return
+
+        container_progresso = st.empty()
+        st.divider()
+        
+        etapa_liberada = True 
+        status_geral = [] 
+
+        for idx, temp in enumerate(templates):
+            t_id = temp['id']
+            nome_etapa = temp['nome_formulario']
+            concluida = verificar_etapa_concluida(user_id, nome_etapa)
+            status_geral.append(concluida)
+            
+            # Cache de Feedback
+            if f"feedback_{t_id}" not in st.session_state:
+                fb = buscar_ultimo_feedback_ia(user_id, nome_etapa)
+                if fb: st.session_state[f"feedback_{t_id}"] = fb
+            
+            label = f"✅ {nome_etapa}" if concluida else f"📋 {nome_etapa}"
+            
+            with st.expander(label, expanded=not concluida):
+                col_tit, col_stat = st.columns([2, 1])
+                with col_tit:
+                    st.markdown(f"### {nome_etapa}")
+                
+                with col_stat:
+                    escolha = st.radio("Status da Etapa:", ["Em andamento", "Concluído"],
+                                     index=1 if concluida else 0,
+                                     key=f"rad_q2_{t_id}", horizontal=True,
+                                     disabled=not etapa_liberada)
+                    
+                    if escolha == "Concluído" and not concluida:
+                        if salvar_conclusao_etapa(user_id, nome_etapa):
+                            st.rerun()
+
+                if not etapa_liberada:
+                    st.warning("🔒 Conclua a etapa anterior para liberar esta.")
+                else:
+                    st.markdown("#### 1. Preparação")
+                    if temp['caminho_arquivo'] and os.path.exists(temp['caminho_arquivo']):
+                        with open(temp['caminho_arquivo'], "rb") as f:
+                            st.download_button(
+                                label="⬇️ Baixar Template Modelo", 
+                                data=f, 
+                                file_name=temp['nome_arquivo_original'],
+                                key=f"dl_q2_{t_id}", 
+                                use_container_width=True
+                            )
+                    
+                    st.write("")
+                    st.markdown("#### 2. Entrega e Validação")
+                    up = st.file_uploader("Submeta seu arquivo", type=['xlsx', 'pdf', 'docx'], key=f"up_q2_{t_id}")
+
+                    if up:
+                        _, col_btn, _ = st.columns([1, 1, 1])
+                        with col_btn:
+                            if st.button("🤖 Analisar Documento", key=f"btn_ia_q2_{t_id}", type="primary", use_container_width=True):
+                                with st.spinner("O Agente IA está revisando..."):
+                                    resultado = analisar_documento_ia(up, nome_etapa)
+                                    if resultado.get('porcentagem', 0) > 0:
+                                        if salvar_entrega_e_feedback(user_id, nome_etapa, up, resultado):
+                                            salvar_conclusao_etapa(user_id, nome_etapa)
+                                            st.toast("Análise finalizada!")
+                                            st.rerun()
+                                    else:
+                                        st.error(f"Erro: {resultado.get('feedback_ludico')}")
+
+                    # EXIBIÇÃO DO FEEDBACK IA
+                    if f"feedback_{t_id}" in st.session_state:
+                        res = st.session_state[f"feedback_{t_id}"]
+                        st.divider()
+                        
+                        c1, c2 = st.columns([1, 2])
+                        with c1:
+                            st.plotly_chart(criar_grafico_circular(res['porcentagem']), use_container_width=True, config={'displayModeBar': False})
+                        with c2:
+                            st.markdown(f"#### Diagnóstico de Maturidade")
+                            st.markdown(f"**Nível:** <span style='color:{res['cor']}; font-weight:bold;'>{res['zona']}</span>", unsafe_allow_html=True)
+                            st.markdown(f"""
+                                <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid {res['cor']};">
+                                    <small style="color: {res['cor']}; font-weight: bold;">Parecer do Mentor:</small><br>
+                                    <span style="color: #113140; font-style: italic;">"{res['feedback_ludico']}"</span>
+                                </div>
+                            """, unsafe_allow_html=True)
+
+                        # TRATAMENTO DE LISTA DE ITENS FALTANTES
+                        if res.get('perguntas_faltantes'):
+                            with st.expander("⚠️ Pontos de atenção detectados:", expanded=False):
+                                faltantes = res['perguntas_faltantes']
+                                # Garante que seja uma lista para evitar exibição letra-a-letra
+                                if isinstance(faltantes, str):
+                                    try:
+                                        faltantes = json.loads(faltantes.replace("'", '"'))
+                                    except:
+                                        faltantes = [faltantes]
+                                
+                                if isinstance(faltantes, list):
+                                    for item in faltantes:
+                                        if item.strip(): st.write(f"• {item}")
+
+                        if res.get('dicas'):
+                            st.info(f"💡 **Dica Estratégica:** {res['dicas']}")
+
+            etapa_liberada = concluida 
+
+        # Renderizar Progresso Geral da Página
+        total = len(templates)
+        concluidas = sum(status_geral)
+        p_val = concluidas / total if total > 0 else 0
+        with container_progresso.container():
+            col_p1, col_p2 = st.columns([4, 1])
+            with col_p1:
+                st.write(f"**Progresso no Q2:** {concluidas} de {total} etapas")
+                st.progress(p_val)
+            with col_p2:
+                if p_val == 1.0: 
+                    if st.button("Próximo Trimestre 🚀", key="btn_next_q3", type="primary"):
+                        st.switch_page("pages/Trimestre Q3.py")
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    Q2_page()

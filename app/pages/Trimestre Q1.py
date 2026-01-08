@@ -108,15 +108,17 @@ def Q1_page():
                     # --- DOWNLOAD (Ajustado para Assets/Templates) ---
                     st.markdown("#### 1. Preparação")
                     
-                    # Lógica para ignorar caminho do Windows e focar na pasta assets/templates
-                    nome_físico = os.path.basename(temp['caminho_arquivo'])
-                    caminho_nuvem = os.path.join("assets", "templates", nome_físico)
+                    nome_fisico = os.path.basename(temp['caminho_arquivo'])
+                    diretorio_atual = os.path.dirname(os.path.abspath(__file__))                   
+                    raiz_projeto = os.path.dirname(diretorio_atual)
                     
-                    if not os.path.exists(caminho_nuvem):
-                        st.error(f"Arquivo não encontrado no servidor: {caminho_nuvem}")
+                    caminho_completo = os.path.join(raiz_projeto, "assets", "templates", nome_fisico)
+                    
+                    if not os.path.exists(caminho_completo):
+                        st.error(f"Arquivo não encontrado no servidor: {nome_fisico}")
                     else:
                         try:
-                            with open(caminho_nuvem, "rb") as f:
+                            with open(caminho_completo, "rb") as f:
                                 templates_bytes = f.read()
                                 
                                 st.download_button(

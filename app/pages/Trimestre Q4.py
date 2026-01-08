@@ -56,7 +56,7 @@ def validar_acesso_q4(user_id):
 if not validar_acesso_q4(st.session_state.get("usuario_id")):
     st.warning("⚠️ Acesso Bloqueado: Você precisa concluir 100% das etapas do Q3 antes de iniciar o Q4.")
     
-    # Botão com chave única para o Q3
+    # Botão com chave única para o Q3   
     if st.button("⬅️ Voltar para o Q3", type="primary", width="stretch", key="btn_voltar_q3"):
         st.session_state["current_page"] = "q3_page" 
         st.switch_page("pages/Trimestre Q3.py")
@@ -127,14 +127,19 @@ def Q4_page():
                     # 1. Download
                     st.markdown("#### 1. Preparação")
                     
-                    nome_físico = os.path.basename(temp['caminho_arquivo'])
-                    caminho_nuvem = os.path.join("assets", "templates", nome_físico)
+                    nome_fisico = os.path.basename(temp['caminho_arquivo'])
+                    diretorio_atual = os.path.dirname(os.path.abspath(__file__))                   
+                    raiz_projeto = os.path.dirname(diretorio_atual)
                     
-                    if os.path.exists(caminho_nuvem):
+                    caminho_completo = os.path.join(raiz_projeto, "assets", "templates", nome_fisico)
+                    
+                    if not os.path.exists(caminho_completo):
+                        st.error(f"Arquivo não encontrado no servidor: {nome_fisico}")
+                    else:
                         try:
-                            with open(caminho_nuvem, "rb") as f:
+                            with open(caminho_completo, "rb") as f:
                                 templates_bytes = f.read()
-                                
+                                                                
                                 st.download_button(
                                     label="⬇️ Baixar Template Modelo",
                                     data=templates_bytes,
@@ -145,9 +150,7 @@ def Q4_page():
                                 )
                         except Exception as e:
                             st.error(f"Erro ao processar download: {e}")
-                    else:
-                        st.error(f"Arquivo não encontrado no servidor: {nome_físico}")
-                
+                             
                      # --- UPLOAD E ANÁLISE ---
                     st.write("") 
                     st.markdown("#### 2. Entrega e Validação")

@@ -54,13 +54,16 @@ def aba_consulta_respostas():
                     # Conteúdo interno (Download e Diagnóstico)
                     st.markdown("### 📥 Arquivo Enviado")
                     
-                    caminho = entrega['caminho_arquivo_aluno']
+                    caminho_relativo = entrega['caminho_arquivo_aluno']                    
+                    diretorio_atual = os.path.dirname(os.path.abspath(__file__))                    
+                    raiz_projeto = os.path.dirname(diretorio_atual) 
+                    caminho_completo = os.path.join(raiz_projeto, caminho_relativo) if caminho_relativo else None
                     
                     # --- AJUSTE NO CAMINHO E DOWNLOAD ---
-                    if caminho and os.path.exists(caminho):
+                    if caminho_completo and os.path.exists(caminho_completo):
                         try:
-                            with open(caminho, "rb") as f:
-                                conteudo_arquivo = f.read()  # Lemos o binário
+                            with open(caminho_completo, "rb") as f:
+                                conteudo_arquivo = f.read()
                                 
                             st.download_button(
                                 label=f"⬇️ Baixar {entrega['nome_arquivo_original']}",

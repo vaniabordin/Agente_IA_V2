@@ -14,12 +14,23 @@ from utils.db import salvar_template_db, listar_templates_db, excluir_template, 
 
 def criar_link_download_clean(caminho_arquivo, nome_exibicao):
     """Gera link de download via Base64 (Preservado conforme original)"""
-    if caminho_arquivo and os.path.exists(caminho_arquivo):
-        with open(caminho_arquivo, "rb") as f:
-            data = f.read()
-        b64 = base64.b64encode(data).decode()
-        href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome_exibicao}" style="text-decoration: none; color: #1f77b4; font-weight: bold;">📄 {nome_exibicao}</a>'
-        return href
+    if not caminho_arquivo:
+        return "<span style='color: gray;'>Não disponível</span>"
+    
+    diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+    raiz_projeto = os.path.dirname(diretorio_atual)
+    caminho_completo = os.path.join(raiz_projeto, caminho_arquivo)
+    
+    if os.path.exists(caminho_completo):
+        try:
+            with open(caminho_completo, "rb") as f:
+                data = f.read()
+            b64 = base64.b64encode(data).decode()
+            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome_exibicao}" style="text-decoration: none; color: #1f77b4; font-weight: bold;">📄 {nome_exibicao}</a>'
+            return href
+        except Exception as e:
+            return f"<span style='color: red;'>Erro ao ler</span>"
+    
     return "<span style='color: gray;'>Não disponível</span>"
 
 # --------------------------------

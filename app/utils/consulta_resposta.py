@@ -58,7 +58,7 @@ def aba_consulta_respostas():
                     caminho_db = entrega['caminho_arquivo_aluno'] 
                     nome_fisico = os.path.basename(caminho_db)                   
                     # O arquivo do aluno está em 'uploads/entregas_alunos'
-                    caminho_completo = os.path.join(os.getcwd(), "uploads", "entregas_alunos", nome_fisico)
+                    caminho_completo = os.path.join("uploads", "entregas_alunos", nome_fisico)
                                                            
                     if os.path.exists(caminho_completo):
                         try:
@@ -98,6 +98,8 @@ def aba_consulta_respostas():
                                     for item in faltantes:
                                         st.write(f"• {item}")
                         except: pass
+                    if entrega.get('dicas'):
+                        st.info(f"💡 **Diretriz Estratégica:** {entrega['dicas']}")
 
     except Exception as e:
         st.error(f"Erro ao carregar dados: {str(e)}")

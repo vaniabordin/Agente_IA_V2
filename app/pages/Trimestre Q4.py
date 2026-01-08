@@ -57,12 +57,14 @@ if not validar_acesso_q4(st.session_state.get("usuario_id")):
     st.warning("⚠️ Acesso Bloqueado: Você precisa concluir 100% das etapas do Q3 antes de iniciar o Q4.")
     
     # Centralizar o botão para melhor UX
-    col_v1, col_v2, col_v3 = st.columns([3, 1, 3])
+    col_v1, col_v2, col_v3 = st.columns([2, 1, 2])
     with col_v2:
-        if st.button("⬅️ Voltar para o Trimestre Q3", type="primary", use_container_width=True, key="btn_voltar_q3_fix"):
-            st.session_state["current_page"] = "q3_page"          
-            st.switch_page("pages/Trimestre Q3.py") 
-                   
+       if st.button("⬅️ Voltar para o Trimestre Q3", type="primary", use_container_width=True, key="btn_redirecionar_q3"):
+            st.session_state["current_page"] = "q3_page"
+            try:
+                st.switch_page("pages/Trimestre Q3.py")
+            except Exception as e:                
+                st.error(f"Erro ao redirecionar: Certifique-se que o arquivo em 'pages/Trimestre Q3.py' existe.")
     st.stop()
 # --- 3. PÁGINA PRINCIPAL Q4 --- #
 def Q4_page():

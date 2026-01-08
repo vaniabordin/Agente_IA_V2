@@ -160,18 +160,19 @@ def salvar_entrega_e_feedback(usuario_id, etapa, arquivo_objeto, feedback_json):
     conn = conectar()
     if not conn: return False
     cursor = conn.cursor()
+    
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         nome_limpo = "".join(c for c in arquivo_objeto.name if c.isalnum() or c in "._-").strip()
         nome_unico = f"user_{usuario_id}_{timestamp}_{nome_limpo}"
         
         caminho_fisico = os.path.join(UPLOAD_DIR, nome_unico)
-
+        
         with open(caminho_fisico, "wb") as f:
             f.write(arquivo_objeto.getbuffer())
-            
-        caminho_banco = f"uploads/entregas_alunos/{nome_unico}"
         
+        caminho_banco = nome_unico
+               
         if isinstance(feedback_json, str):
             feedback_json = json.loads(feedback_json)
         
@@ -185,19 +186,28 @@ def salvar_entrega_e_feedback(usuario_id, etapa, arquivo_objeto, feedback_json):
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            usuario_id, etapa.strip(), caminho_banco, arquivo_objeto.name,
-            feedback_json.get('porcentagem', 0), feedback_json.get('zona', 'N/A'), 
-            feedback_json.get('feedback_ludico', ''), feedback_json.get('cor', '#FFFFFF'),
-            perguntas_str, dicas_str
+            usuario_id, etapa.strip(), 
+            caminho_banco, 
+            arquivo_objeto.name,
+            feedback_json.get('porcentagem', 0), 
+            feedback_json.get('zona', 'N/A'), 
+            feedback_json.get('feedback_ludico', ''), 
+            feedback_json.get('cor', '#FFFFFF'),
+            perguntas_str, 
+            dicas_str
         ))
+        
         conn.commit()
         return True
+    
     except Exception as e:
         st.error(f"❌ Erro ao salvar entrega: {e}")
         return False
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 # ==========================================================
 # 5. CONSULTAS IA E FEEDBACK

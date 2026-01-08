@@ -142,22 +142,32 @@ def Q1_page():
                                     try:
                                         # 1. Chamar a análise da IA
                                         resultado = analisar_documento_ia(upload_arquivo, nome_etapa)
-                                        # 2. Verificação Robusta do resultado
-                                        if resultado and isinstance(resultado, dict) and resultado.get('porcentagem', 0) > 0:
-                                            # 3. SÓ SALVA SE TIVER RESULTADO
-                                            sucesso_db = salvar_entrega_e_feedback(user_id, nome_etapa, upload_arquivo, resultado)
+                                        
+                                        # 2. Verificação do resultado
+                                        if resultado and isinstance(resultado, dict):
+                                            # Forçamos o salvamento no banco de dados
+                                            sucesso_db = salvar_entrega_e_feedback(
+                                                usuario_id=user_id, 
+                                                etapa=nome_etapa, 
+                                                arquivo_objeto=upload_arquivo, 
+                                                feedback_json=resultado
+                                            )
+                                            
                                             if sucesso_db:
-
-                                                salvar_conclusao_etapa(user_id, nome_etapa)
-                                                st.toast("Análise finalizada com sucesso!")
+                                                # Força a limeza do cache
+                                                if f"feedback_{t_id}" in st.session_state:
+                                                    del st.session_state[f"feedback_{t_id}"]
+                                                # Registra a conclusão da etapa para liberar a próxima
+                                                salvar_conclusao_etapa(user_id, nome_etapa)                                                                                                
+                                                st.toast("Análise salva no banco de dados!")
+                                                time.sleep(2) # Pequena pausa para garantir o commit no TiDB
                                                 st.rerun()
                                             else:
-                                                # Caso a IA retorne erro ou porcentagem 0
-                                                msg_erro = resultado.get('feedback_ludico', 'Erro desconhecido na análise da IA.')
-                                                st.error(f"A IA não conseguiu validar este arquivo: {msg_erro}")
+                                                st.error("A IA analisou, mas houve um erro ao gravar no banco de dados.")
+                                        else:
+                                            st.error("A IA não conseguiu gerar um diagnóstico válido.")
                                     except Exception as e:
-                                        st.error(f"Erro crítico no processamento: {e}")
-                                        
+                                        st.error(f"Erro crítico: {e}")
                     # --- EXIBIÇÃO DE RESULTADOS IA ---
                     if f"feedback_{t_id}" in st.session_state:
                         res = st.session_state[f"feedback_{t_id}"]

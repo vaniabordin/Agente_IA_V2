@@ -56,7 +56,7 @@ def validar_acesso_q3(user_id):
 if not validar_acesso_q3(st.session_state.get("usuario_id")):
     st.warning("⚠️ Acesso Bloqueado: Você precisa concluir 100% das etapas do Q2 antes de iniciar o Q3.")
     
-    col_v1, col_v2, col_v3 = st.columns([3, 1, 3])
+    col_v1, col_v2, col_v3 = st.columns([2, 1, 2])
     with col_v2:
         if st.button("⬅️ Voltar para o Q2", type="primary", width="stretch", key="btn_voltar_q2"):
             st.session_state["current_page"] = "q2_page" 

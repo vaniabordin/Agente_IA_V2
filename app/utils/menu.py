@@ -30,9 +30,10 @@ def renderizar_menu():
             st.page_link("pages/Trimestre Q4.py", label="4️⃣ Trimestre Q4")
             st.divider()
             
-        # Chama a mentoria IA que você já tem
+        # Chama a mentoria IA 
         mentoria_ia_sidebar()
         
+        st.divider()
         # Botão de Logout (o key deve ser único por página, ou use um valor dinâmico)
-        if st.button("Sair / Logout", use_container_width=True, key=f"logout_sidebar_{st.session_state.get('usuario_id')}"):
+        if st.button("Sair / Logout", width="stretch", key=f"logout_sidebar_{st.session_state.get('usuario_id')}"):
             logout()

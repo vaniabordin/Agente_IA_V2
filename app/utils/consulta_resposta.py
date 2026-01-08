@@ -53,15 +53,26 @@ def aba_consulta_respostas():
                 with st.expander(f"📅 {entrega['etapa']} - Avaliado em: {data_formatada}"):
                     # Conteúdo interno (Download e Diagnóstico)
                     st.markdown("### 📥 Arquivo Enviado")
+                    
                     caminho = entrega['caminho_arquivo_aluno']
+                    
+                    # --- AJUSTE NO CAMINHO E DOWNLOAD ---
                     if caminho and os.path.exists(caminho):
-                        with open(caminho, "rb") as f:
+                        try:
+                            with open(caminho, "rb") as f:
+                                conteudo_arquivo = f.read()  # Lemos o binário
+                                
                             st.download_button(
-                                label=f"Baixar {entrega['nome_arquivo_original']}",
-                                data=f,
-                                file_name=entrega['nome_arquivo_original'] or "planilha.xlsx",
+                                label=f"⬇️ Baixar {entrega['nome_arquivo_original']}",
+                                data=conteudo_arquivo, # Passamos o binário lido
+                                file_name=entrega['nome_arquivo_original'] or "entrega.xlsx",
+                                mime="application/octet-stream", # Genérico para aceitar PDF/Excel
                                 key=f"dl_admin_{entrega['id']}"
                             )
+                        except Exception as e:
+                            st.error(f"Erro ao ler arquivo para download: {e}")
+                    else:
+                        st.error("⚠️ Arquivo físico não encontrado no servidor.")
                     
                     st.divider()
                     st.markdown("### 🤖 Diagnóstico da IA")
@@ -70,7 +81,7 @@ def aba_consulta_respostas():
                     porcentagem = entrega.get('porcentagem', 0)
                     c_esq, c_meio, c_dir = st.columns([1, 2, 1])
                     with c_meio:
-                        st.plotly_chart(criar_grafico_circular(porcentagem), use_container_width=True)
+                        st.plotly_chart(criar_grafico_circular(porcentagem), width="stretch")
                     
                     st.write(f"**Performance:** `{porcentagem}%` | **Zona:** `{entrega['zona']}`")
                     st.info(f"**Parecer:** {entrega['feedback_ludico']}")
@@ -85,6 +96,6 @@ def aba_consulta_respostas():
                         except: pass
 
     except Exception as e:
-        st.error(f"Erro: {str(e)}")
+        st.error(f"Erro ao carregar dados: {str(e)}")
     finally:
         conn.close()

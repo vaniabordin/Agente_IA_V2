@@ -8,7 +8,7 @@ from utils.db import (
     conectar, verificar_etapa_concluida, salvar_conclusao_etapa, 
     salvar_entrega_e_feedback, buscar_ultimo_feedback_ia
 )
-from utils.ia_chat import analisar_documento_ia
+from utils.ia_chat import analisar_documento_ia, mentoria_ia_sidebar
 from utils.ui import aplicar_estilo_fcj
 from utils.menu import renderizar_menu
 from utils.ui import criar_grafico_circular
@@ -34,6 +34,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+st.session_state["current_page"] = "q1_page"
 aplicar_estilo_fcj()
 renderizar_menu()
 
@@ -92,7 +93,7 @@ def Q1_page():
                     escolha = st.radio(
                         "Status da Etapa:", ["Em andamento", "Concluído"],
                         index=1 if concluida else 0,
-                        key=f"rad_{t_id}",
+                        key=f"rad_q1_{t_id}",                        
                         horizontal=True,
                         disabled=not etapa_liberada
                     )
@@ -104,27 +105,40 @@ def Q1_page():
                 if not etapa_liberada:
                     st.warning("🔒 Conclua a etapa anterior para liberar esta.")
                 else:
-                    # --- DOWNLOAD ---
+                    # --- DOWNLOAD (Ajustado para Assets/Templates) ---
                     st.markdown("#### 1. Preparação")
-                    if temp['caminho_arquivo'] and os.path.exists(temp['caminho_arquivo']):
-                        with open(temp['caminho_arquivo'], "rb") as f:
-                            st.download_button(
-                                label="⬇️ Baixar Template Modelo",
-                                data=f,
-                                file_name=temp['nome_arquivo_original'],
-                                key=f"dl_{t_id}",
-                                use_container_width=True
-                            )
                     
+                    # Lógica para ignorar caminho do Windows e focar na pasta assets/templates
+                    nome_físico = os.path.basename(temp['caminho_arquivo'])
+                    caminho_nuvem = os.path.join("assets", "templates", nome_físico)
+                    
+                    if not os.path.exists(caminho_nuvem):
+                        st.error(f"Arquivo não encontrado no servidor: {caminho_nuvem}")
+                    else:
+                        try:
+                            with open(caminho_nuvem, "rb") as f:
+                                templates_bytes = f.read()
+                                
+                                st.download_button(
+                                    label="⬇️ Baixar Template Modelo",
+                                    data=templates_bytes,
+                                    file_name=temp['nome_arquivo_original'],
+                                    mime="application/octet-stream",
+                                    key=f"dl_q1_{t_id}",                                    
+                                    width="stretch"
+                                )
+                        except Exception as e:
+                            st.error(f"Erro ao processar download: {e}")
+                                       
                     # --- UPLOAD E ANÁLISE ---
                     st.write("") 
                     st.markdown("#### 2. Entrega e Validação")
-                    upload_arquivo = st.file_uploader("Submeta seu arquivo (Excel, PDF ou Word)", type=['xlsx', 'pdf', 'docx'], key=f"up_{t_id}")
+                    upload_arquivo = st.file_uploader("Submeta seu arquivo (Excel, PDF ou Word)", type=['xlsx', 'pdf', 'docx'], key=f"up_q1_{t_id}")
 
                     if upload_arquivo:
                         _, col_btn, _ = st.columns([1, 1, 1])
                         with col_btn:
-                            if st.button(f"🤖 Analisar Documento", key=f"btn_ia_{t_id}", type="primary", use_container_width=True):
+                            if st.button(f"🤖 Analisar Documento", key=f"btn_ia_q1_{t_id}", type="primary", width="stretch"):
                                 with st.spinner("O Agente IA está revisando..."):
                                     resultado = analisar_documento_ia(upload_arquivo, nome_etapa)
                                     
@@ -143,7 +157,7 @@ def Q1_page():
                         
                         c1, c2 = st.columns([1, 2])
                         with c1:
-                            st.plotly_chart(criar_grafico_circular(res['porcentagem']), use_container_width=True, config={'displayModeBar': False})
+                            st.plotly_chart(criar_grafico_circular(res['porcentagem']), width="stretch", config={'displayModeBar': False})
                         with c2:
                             st.markdown(f"#### Diagnóstico de Maturidade")
                             st.markdown(f"**Nível:** <span style='color:{res['cor']}; font-size:1.2rem; font-weight:bold;'>{res['zona']}</span>", unsafe_allow_html=True)
@@ -154,22 +168,20 @@ def Q1_page():
                                 </div>
                             """, unsafe_allow_html=True)
 
-                        # Exibição de Itens Faltantes e Dicas (Novos Campos)
                         if res.get('perguntas_faltantes'):
-                            with st.expander("⚠️ Itens que a Ia não detectados como preenchidos:", expanded=False):
+                            with st.expander("⚠️ Itens não detectados:", expanded=False):
                                 for item in res['perguntas_faltantes']:
                                     st.write(f"• {item}")
 
                         if res.get('dicas'):
                             st.info(f"💡 **Dica Estratégica:** {res['dicas']}")
 
-            # Regra de negócio: A próxima só libera se a atual estiver concluída
             etapa_liberada = concluida 
 
-        # --- 3. RENDERIZAÇÃO FINAL DA BARRA DE PROGRESSO ---
+        # --- 3. PROGRESSO FINAL ---
         total = len(templates)
         concluidas = sum(lista_final_status)
-        valor_progresso = concluidas / total
+        valor_progresso = concluidas / total if total > 0 else 0
 
         with container_progresso.container():
             col_p1, col_p2 = st.columns([4, 1])
@@ -177,11 +189,17 @@ def Q1_page():
                 st.write(f"**Progresso no Q1:** {concluidas} de {total} etapas")
                 st.progress(valor_progresso)
             with col_p2:
-                if valor_progresso == 1.0:
-                    st.button("Próximo Trimestre 🚀", on_click=lambda: st.switch_page("pages/Trimestre Q2.py"))
+                if valor_progresso == 1.0:                   
+                    if st.button("Próximo Trimestre 🚀", type="primary", width="stretch"):
+                        st.session_state["current_page"] = "q2_page" # Atualiza o estado antes de mudar
+                        st.switch_page("pages/Trimestre Q2.py")
 
+    except Exception as e:
+        st.error(f"Erro ao carregar página: {e}")
     finally:
-        conn.close()
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 if __name__ == "__main__":
     Q1_page()

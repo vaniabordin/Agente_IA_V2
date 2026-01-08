@@ -10,7 +10,7 @@ from utils.db import (
 )
 from utils.cadastro_usuario import exibir_usuarios_admin
 from login import login, logout
-from gerenciador import gerenciador_page
+from utils.criar_templates import cria_templates_page
 from utils.ia_chat import mentoria_ia_sidebar
 from utils.ui import aplicar_estilo_fcj
 from utils.menu import renderizar_menu
@@ -24,12 +24,16 @@ icon_path = os.path.join(current_dir, "assets", "icone_fcj.png")
 st.set_page_config(
     page_title="Templates FCJ",    
     layout="wide",
-    page_icon=icon_path    
+    page_icon=icon_path     
 )
 
 # --- 2. INICIALIZAÇÃO E CONTROLE DE ACESSO ---
 init_db()
 
+if "db_initialized" not in st.session_state:
+    init_db()
+    st.session_state["db_initialized"] = True
+    
 if "authenticated" not in st.session_state: 
     st.session_state["authenticated"] = False
 
@@ -71,14 +75,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- FUNÇÕES DE APOIO ---
+@st.cache_data(ttl=60)
 def calcular_progresso_trimestre(user_id, trimestre):
     conn = conectar()
-    if not conn: return 0
+    if not conn:
+        return 0
     try:
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT nome_formulario FROM arquivos_templates WHERE template = %s AND status = 'ativo'", (trimestre,))
         etapas = cursor.fetchall()
-        if not etapas: return 0
+        
+        if not etapas: 
+            return 0
+        
         concluidas = sum([1 for e in etapas if verificar_etapa_concluida(user_id, e['nome_formulario'])])
         return (concluidas / len(etapas))
     except:
@@ -99,12 +108,12 @@ def render_card_trimestre(titulo, progresso, pagina, status_bloqueado=False):
         if status_bloqueado:
             st.caption("🔒 Bloqueado")
             st.progress(0.0)
-            st.button("Complete o anterior", key=f"btn_{titulo}", disabled=True, use_container_width=True)
+            st.button("Complete o anterior", key=f"btn_{titulo}", disabled=True, width="stretch")
         else:
             progresso_percent = int(progresso * 100)
             st.caption(f"Progresso: {progresso_percent}%")
             st.progress(progresso)
-            if st.button("Acessar Jornada", key=f"btn_{titulo}", use_container_width=True, type="primary"):
+            if st.button("Acessar Jornada", key=f"btn_{titulo}", width="stretch", type="primary"):
                 st.switch_page(pagina)
 
 # --- 4. NAVEGAÇÃO POR ABAS ---
@@ -182,7 +191,7 @@ with abas[0]:
 
 # --- ABAS ADMIN ---
 if st.session_state["role"] == "admin":
-    with abas[1]: gerenciador_page()
+    with abas[1]: cria_templates_page()
     with abas[2]: ia_manager_page()
     with abas[3]:
         # Título da seção
@@ -191,7 +200,7 @@ if st.session_state["role"] == "admin":
         with st.expander("📊 Visão Geral de Envios (Tabela)", expanded=False):
             df_envios = buscar_envios_startups()
             if not df_envios.empty:
-                st.dataframe(df_envios, use_container_width=True)
+                st.dataframe(df_envios, width="stretch")
             else:
                 st.info("Nenhuma startup enviou respostas ainda.")
         

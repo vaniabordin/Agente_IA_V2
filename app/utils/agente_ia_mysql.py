@@ -1,14 +1,21 @@
 import os
+import streamlit as st
 import google.generativeai as genai
-from dotenv import load_dotenv
 from youtube_transcript_api import YouTubeTranscriptApi
 import re
+import tempfile
 
-load_dotenv()
-
-# Configuração da API
-API_KEY = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=API_KEY)
+# ==========================================================
+# 1. CONFIGURAÇÃO GLOBAL (USANDO ST.SECRETS)
+# ==========================================================
+try:     
+    API_KEY_GEMINI = st.secrets.get("GEMINI_API_KEY")
+    if API_KEY_GEMINI:
+        genai.configure(api_key=API_KEY_GEMINI)
+    else:
+        st.error("Chave GEMINI_API_KEY não configurada.")
+except Exception as e:
+    st.error(f"Erro ao configurar API: {e}")
 
 def extrair_id_youtube(url):
     """
@@ -24,22 +31,40 @@ def extrair_id_youtube(url):
             return match.group(1)
     return None
 
-def processar_conteudo_ia(caminho_ou_url, nome_para_db=None):
+def processar_conteudo_ia(origem_conteudo, nome_para_db=None):
     """
-    Função para extrair conhecimento de PDFs ou Vídeos do YouTube.
-    Retorna (Sucesso: bool, Conteudo_ou_Erro: str)
+    Função para extrair conhecimento de PDFs (UploadedFile) ou Vídeos do YouTube (URL).
+    Retorna (Sucesso: bool, Conteudo_ou_Erro: str, Caminho_Salvo: str)
     """
     try:
-        # Modelo Gemini 2.5 Flash
-        model = genai.GenerativeModel('models/gemini-2.5-flash')
+        # Modelo Gemini  
+        model = genai.GenerativeModel('gemini-2.5-flash')
         conteudo_extraido = ""
+        caminho_final_banco = None
 
-        # --- FLUXO ARQUIVO LOCAL (PDF) ---
-        if os.path.exists(caminho_ou_url):
-            nome_arquivo = nome_para_db if nome_para_db else os.path.basename(caminho_ou_url)
+        # --- FLUXO ARQUIVO (UploadedFile do Streamlit ou Path) ---
+        if hasattr(origem_conteudo, 'name') or (isinstance(origem_conteudo, str) and os.path.exists(origem_conteudo)):
+            
+            # Se for um upload do Streamlit, precisamos salvar fisicamente para o Gemini ler
+            if hasattr(origem_conteudo, 'read'):
+                temp_dir = tempfile.gettempdir()                
+                if not os.path.exists(temp_dir):
+                    os.makedirs(temp_dir)
+                
+                caminho_temp = os.path.join(temp_dir, origem_conteudo.name)
+                with open(caminho_temp, "wb") as f:
+                    f.write(origem_conteudo.getbuffer())
+                
+                caminho_final_banco = caminho_temp
+                arquivo_para_processar = caminho_temp
+            else:
+                arquivo_para_processar = origem_conteudo
+                caminho_final_banco = origem_conteudo
+
+            nome_arquivo = nome_para_db if nome_para_db else os.path.basename(arquivo_para_processar)
             
             # Upload para o Google Gemini
-            documento = genai.upload_file(path=caminho_ou_url)
+            documento = genai.upload_file(path=arquivo_para_processar)
             
             prompt = (
                 f"Extraia todo o conteúdo textual do arquivo {nome_arquivo}. "
@@ -50,45 +75,44 @@ def processar_conteudo_ia(caminho_ou_url, nome_para_db=None):
             response = model.generate_content([prompt, documento])
             conteudo_extraido = response.text
             
-            # Deleta o arquivo temporário do servidor do Google
+            # Deleta o arquivo do servidor do Google
             documento.delete()
 
-        # --- FLUXO YOUTUBE (Com Transcrição) ---
-        elif "youtube.com" in caminho_ou_url or "youtu.be" in caminho_ou_url:
-            video_id = extrair_id_youtube(caminho_ou_url)
+        # --- FLUXO YOUTUBE (URL) ---
+        elif isinstance(origem_conteudo, str) and ("youtube.com" in origem_conteudo or "youtu.be" in origem_conteudo):
+            video_id = extrair_id_youtube(origem_conteudo)
+            caminho_final_banco = origem_conteudo # No caso de vídeo, o "caminho" é a URL
             
             if not video_id:
-                return False, "Não foi possível identificar o ID do vídeo do YouTube."
+                return False, "ID do YouTube inválido.", None
 
             try:
-                # Tenta buscar a legenda original (Português ou Inglês)
+                # Tenta buscar a legenda original
                 transcript_list = YouTubeTranscriptApi.get_transcript(video_id, languages=['pt', 'en'])
                 texto_transcrito = " ".join([t['text'] for t in transcript_list])
 
-                # Envia a transcrição para a IA organizar
                 prompt = (
                     "Abaixo está a transcrição bruta de um vídeo. "
-                    "Sua tarefa é organizar este texto em um material de estudo estruturado e detalhado. "
-                    "Não resuma; garanta que todas as diretrizes e ensinamentos técnicos sejam preservados.\n\n"
+                    "Organize este texto em um material de estudo estruturado e detalhado. "
+                    "Não resuma drasticamente; preserve os ensinamentos técnicos.\n\n"
                     f"TRANSCRIÇÃO:\n{texto_transcrito}"
                 )
                 response = model.generate_content(prompt)
                 conteudo_extraido = response.text
 
-            except Exception as e:
-                # Caso o vídeo não tenha legenda, usa a capacidade visual do Gemini (Fallback)
+            except Exception:
+                # Fallback: Caso não haja legenda, tenta análise visual (se disponível no modelo)
                 prompt_fallback = (
-                    f"Analise o vídeo no link {caminho_ou_url}. "
-                    "Assista ao conteúdo e descreva detalhadamente todos os pontos ensinados, "
-                    "criando uma base de conhecimento completa para um aluno."
+                    f"Analise o vídeo no link {origem_conteudo}. "
+                    "Descreva detalhadamente todos os pontos ensinados para criar uma base de conhecimento."
                 )
                 response = model.generate_content(prompt_fallback)
                 conteudo_extraido = response.text
             
         else:
-            return False, "Caminho de arquivo ou URL inválida."
+            return False, "Origem de conteúdo não suportada.", None
 
-        return True, conteudo_extraido
+        return True, conteudo_extraido, caminho_final_banco
 
     except Exception as e:
-        return False, f"Erro no processamento da IA: {str(e)}"
+        return False, f"Erro no processamento da IA: {str(e)}", None

@@ -21,9 +21,6 @@ if st.session_state.get("usuario_id") is None:
     st.switch_page("Home.py") 
     st.stop()
 
-# DEFINIÇÃO DE ID DA PÁGINA (Crucial para a Sidebar dinâmica)
-st.session_state["current_page"] = "q3" 
-
 # Estilização CSS consistente
 st.markdown("""
     <style>
@@ -34,9 +31,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+st.session_state["current_page"] = "q3_page"
 aplicar_estilo_fcj()
 renderizar_menu()
-mentoria_ia_sidebar()
 
 # --- 2. VALIDAÇÃO DE ACESSO (TRAVA Q2) --- #
 def validar_acesso_q3(user_id):
@@ -58,9 +55,8 @@ def validar_acesso_q3(user_id):
 
 if not validar_acesso_q3(st.session_state.get("usuario_id")):
     st.warning("⚠️ Acesso Bloqueado: Você precisa concluir 100% das etapas do Q2 antes de iniciar o Q3.")
-    
-    # Botão para retornar ao trimestre anterior
-    if st.button("⬅️ Voltar para o Q2", key="btn_voltar_q2"):
+    if st.button("⬅️ Voltar para o Q2", type="primary", width="stretch", key="btn_voltar_q2"):
+        st.session_state["current_page"] = "q2_page" 
         st.switch_page("pages/Trimestre Q2.py")
     
     # Interrompe a execução aqui para não mostrar o título "Q3 - Escala"
@@ -69,8 +65,7 @@ if not validar_acesso_q3(st.session_state.get("usuario_id")):
 # --- 3. PÁGINA PRINCIPAL Q3 --- #
 def Q3_page():
     st.title("Q3 - Escala: Crescimento com Eficiência")
-    st.markdown("Foco: Otimização de processos, expansão de mercado e estruturação de times.")
-    
+        
     user_id = st.session_state.get("usuario_id")
     conn = conectar()
     if not conn: return
@@ -127,33 +122,47 @@ def Q3_page():
                     st.warning("🔒 Conclua a etapa anterior para liberar esta.")
                 else:
                     st.markdown("#### 1. Preparação")
-                    if temp['caminho_arquivo'] and os.path.exists(temp['caminho_arquivo']):
-                        with open(temp['caminho_arquivo'], "rb") as f:
-                            st.download_button(
-                                label="⬇️ Baixar Modelo Q3", 
-                                data=f, 
-                                file_name=temp['nome_arquivo_original'],
-                                key=f"dl_q3_{t_id}", 
-                                use_container_width=True
-                            )
                     
-                    st.write("")
-                    st.markdown("#### 2. Submissão e Análise")
-                    up = st.file_uploader("Upload do arquivo preenchido", type=['xlsx', 'pdf', 'docx'], key=f"up_q3_{t_id}")
-
-                    if up:
+                    nome_físico = os.path.basename(temp['caminho_arquivo'])
+                    caminho_nuvem = os.path.join("assets", "templates", nome_físico)
+                    
+                    if os.path.exists(caminho_nuvem):
+                        try:
+                            with open(caminho_nuvem, "rb") as f:
+                                templates_bytes = f.read()
+                                
+                                st.download_button(
+                                    label="⬇️ Baixar Template Modelo",
+                                    data=templates_bytes,
+                                    file_name=temp['nome_arquivo_original'],
+                                    mime="application/octet-stream",
+                                    key=f"dl_q3_{t_id}",
+                                    width="stretch"
+                                )
+                        except Exception as e:
+                            st.error(f"Erro ao processar download: {e}")
+                    else:
+                        st.error(f"Arquivo não encontrado no servidor: {nome_físico}")
+                
+                     # --- UPLOAD E ANÁLISE ---
+                    st.write("") 
+                    st.markdown("#### 2. Entrega e Validação")
+                    upload_arquivo = st.file_uploader("Submeta seu arquivo (Excel, PDF ou Word)", type=['xlsx', 'pdf', 'docx'], key=f"up_q3_{t_id}")
+                   
+                    if upload_arquivo:
                         _, col_btn, _ = st.columns([1, 1, 1])
                         with col_btn:
-                            if st.button("🤖 Analisar Documento", key=f"btn_ia_q3_{t_id}", type="primary", use_container_width=True):
-                                with st.spinner("Analisando métricas de escala..."):
-                                    resultado = analisar_documento_ia(up, nome_etapa)
+                            if st.button(f"🤖 Analisar Documento", key=f"btn_ia_q3_{t_id}", type="primary", width="stretch"):
+                                with st.spinner("O Agente IA está revisando..."):
+                                    resultado = analisar_documento_ia(upload_arquivo, nome_etapa)
+                                    
                                     if resultado.get('porcentagem', 0) > 0:
-                                        if salvar_entrega_e_feedback(user_id, nome_etapa, up, resultado):
+                                        if salvar_entrega_e_feedback(user_id, nome_etapa, upload_arquivo, resultado):
                                             salvar_conclusao_etapa(user_id, nome_etapa)
-                                            st.toast("Análise concluída!")
+                                            st.toast("Análise finalizada com sucesso!")
                                             st.rerun()
                                     else:
-                                        st.error(f"Erro na análise: {resultado.get('feedback_ludico')}")
+                                        st.error(f"Não foi possível validar: {resultado.get('feedback_ludico')}")
 
                     # --- EXIBIÇÃO DO FEEDBACK ---
                     if f"feedback_{t_id}" in st.session_state:
@@ -161,7 +170,7 @@ def Q3_page():
                         st.divider()
                         c1, c2 = st.columns([1, 2])
                         with c1:
-                            st.plotly_chart(criar_grafico_circular(res['porcentagem']), use_container_width=True, config={'displayModeBar': False})
+                            st.plotly_chart(criar_grafico_circular(res['porcentagem']), width="stretch", config={'displayModeBar': False})
                         with c2:
                             st.markdown(f"**Nível:** <span style='color:{res['cor']}; font-weight:bold;'>{res['zona']}</span>", unsafe_allow_html=True)
                             st.markdown(f"""
@@ -197,11 +206,15 @@ def Q3_page():
                 st.write(f"**Maturidade no Q3:** {concluidas} de {total} etapas")
                 st.progress(p_val)
             with col_p2:
-                if p_val == 1.0:
-                    if st.button("Próximo Trimestre 🚀", key="btn_next_q4", type="primary"):
+                if p_val == 1.0:                    
+                    if st.button("Próximo Trimestre 🚀", type="primary", width="stretch"):
+                        st.session_state["current_page"] = "q4_page" # Atualiza o estado antes de mudar
                         st.switch_page("pages/Trimestre Q4.py")
+
     finally:
-        conn.close()
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 if __name__ == "__main__":
     Q3_page()

@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import time
 from utils.db import conectar, cadastrar_usuario_db, remover_usuario_db
 
 def exibir_usuarios_admin():
@@ -36,8 +37,7 @@ def exibir_usuarios_admin():
             if novo_user and nova_senha:
                 sucesso, msg = cadastrar_usuario_db(novo_user, nova_senha, novo_role)
                 if sucesso:
-                    st.success(f"✅ {msg}")
-                    import time
+                    st.success(f"✅ {msg}")                   
                     time.sleep(1.5) # Tempo para o usuário ver a mensagem antes de atualizar
                     st.rerun()
                 else:

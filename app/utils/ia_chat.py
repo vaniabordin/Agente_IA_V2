@@ -7,171 +7,153 @@ import json
 import time
 from utils.db import registrar_erro_ia, buscar_conhecimento_ia
 
-# --- CONFIGURAÇÃO GLOBAL ---
-API_KEY_GEMINI = os.getenv("GEMINI_API_KEY")
-genai.configure(api_key=API_KEY_GEMINI)
+# ==========================================================
+# 1. CONFIGURAÇÃO GLOBAL (ST.SECRETS)
+# ==========================================================
+try:
+    API_KEY_GEMINI = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=API_KEY_GEMINI)
+except Exception:
+    st.error("Chave GEMINI_API_KEY ausente.")
 
-client_meta = OpenAI(
-    base_url="https://api.groq.com/openai/v1", 
-    api_key=os.getenv("META_AI_API_KEY")
-)
+try:
+    # Cliente configurado para usar Meta AI (Llama 3 via Groq)
+    client_meta = OpenAI(
+        base_url="https://api.groq.com/openai/v1", 
+        api_key=st.secrets["META_AI_API_KEY"]
+    )
+except Exception:
+    st.error("Chave META_AI_API_KEY ausente.")
+    
+MODELO_DOCS = 'gemini-1.5-flash' 
+MODELO_META = 'llama-3.3-70b-versatile'
 
-# Modelos confirmados para 2026
-MODELO_DOCS = 'gemini-2.5-flash' 
-MODELO_CHAT = 'llama-3.3-70b-versatile'
-
-
+# ==========================================================
+# 2. MENTORIA SIDEBAR (USANDO META AI)
+# ==========================================================
 def mentoria_ia_sidebar():
-    page_id = st.session_state.get("current_page", "default")
-    
-    st.markdown("""
-        <style>
-            [data-testid="stSidebar"] { min-width: 350px; }
-            .stChatMessage { overflow-wrap: break-word; }
-            .stChatMessage div, .stChatMessage p { 
-                color: #FFFFFF !important;
-                font-weight: 500 !important;
-            }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    st.sidebar.divider()
-    col_tit, col_btn = st.sidebar.columns([0.6, 0.4])
-    with col_tit:
-        st.markdown("### 🤖 Agente IA")
-    with col_btn:
-            # Geramos um ID único baseado no tempo para matar o erro de Duplicate Key
-            timestamp_id = int(time.time() * 1000)
-            unique_key = f"btn_limpar_{page_id}_{timestamp_id}"
-            
-            if st.button("Limpar", icon="🗑️", use_container_width=True, key=unique_key):
-                st.session_state.messages = []
-                st.rerun()
-                
+    """Chat lateral utilizando estritamente a Meta AI"""
     if "messages" not in st.session_state:
         st.session_state.messages = []
-        
-    chat_container = st.sidebar.container()
-   
-    for message in st.session_state.messages:
-        with chat_container.chat_message(message["role"]):
-            st.markdown(message["content"])
-    chat_key = f"chat_input_{page_id}_{int(time.time() * 1000)}"
+
+    # Identifica o contexto da página atual (Q1, Q2, Q3 ou Q4)
+    page_id = st.session_state.get("current_page", "Geral")
+    mapa_temas = {
+        "q1_page": "Diagnóstico e Fundação",
+        "q2_page": "Tração e Vendas",
+        "q3_page": "Escala e Processos",
+        "q4_page": "Governança e Captação"
+    }
+    tema_atual = mapa_temas.get(page_id, "Aceleração de Startups")
+
+    st.sidebar.divider()
+    col_tit, col_btn = st.sidebar.columns([0.6, 0.4])
     
-    if prompt := st.sidebar.chat_input("Dúvida rápida?", key=chat_key):
+    with col_tit:
+        st.sidebar.divider()
+        st.sidebar.markdown(f"### 🤖 Mentor Meta AI")
+    
+    with col_btn:
+        # Chave baseada na página para evitar conflitos de widgets
+        key_limpar = f"btn_limpar_sidebar_{st.session_state.get('current_page', 'home')}"
+        if st.sidebar.button("🗑️ Limpar Histórico", width="stretch", key=key_limpar):
+            st.session_state.messages = []
+            st.rerun()
+            
+        st.sidebar.write("")
+    # Histórico de Chat
+    chat_container = st.sidebar.container(height=400)
+    for msg in st.session_state.messages:
+        with chat_container.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    # Input (Key estática para não perder o foco ao digitar)
+    if prompt := st.sidebar.chat_input("Dúvida sobre esta etapa?", key=f"input_{page_id}"):
         st.session_state.messages.append({"role": "user", "content": prompt})
         with chat_container.chat_message("user"):
             st.markdown(prompt)
-    
+
         with chat_container.chat_message("assistant"):
             placeholder = st.empty()
-            with st.spinner("Consultando base de conhecimento..."):   
-                try:
-                    conhecimento = buscar_conhecimento_ia(prompt)
-                    if not conhecimento:
-                        conhecimento = "Nenhum documento específico encontrado. Use seu conhecimento geral sobre a FCJ."
-                    
-                    response = client_meta.chat.completions.create(
-                        model=MODELO_CHAT,
-                        messages=[
-                            {"role": "system", "content": (
-                                "Você é o Mentor IA da FCJ. Sua personalidade é animada e focada em resultados. "
-                                "Responda em no máximo 2 frases usando metáforas de negócios. "
-                                f"[CONTEXTO]: {conhecimento}"
-                            )},
-                            {"role": "user", "content": prompt}
-                        ],
-                        max_tokens=500,
-                        temperature=0.7
-                    )
-                    
-                    full_response = response.choices[0].message.content.strip()
-                    for i in range(len(full_response)):
-                        placeholder.markdown(full_response[:i+1] + "▌")
-                        time.sleep(0.005)
-                    placeholder.markdown(full_response)
-                    st.session_state.messages.append({"role": "assistant", "content": full_response})
-                    
-                except Exception as e:
-                    registrar_erro_ia(st.session_state.get("usuario_id"), "Chat_Meta", "Erro RAG", str(e))                    
-                    placeholder.error("Erro ao processar consulta.")
+            full_response = ""
+            
+            try:
+                # 1. Busca Conhecimento (RAG)
+                conhecimento = buscar_conhecimento_ia(prompt)
+                
+                # 2. Chamada Meta AI (Groq)
+                response = client_meta.chat.completions.create(
+                    model=MODELO_META,
+                    messages=[
+                        {"role": "system", "content": (
+                            f"Você é o agente IA da FCJ. O usuário está na fase: {tema_atual}. "
+                            "Sua personalidade é MOTIVADORA, LÚDICA e OBJETIVA. "
+                            "Use metáforas de crescimento de startups (foguetes, tração, pista), mas vá direto ao ponto."
+                            "Responda de forma extremamente concisa (máximo 2 frases curtas). " # Reforço da objetividade
+                            f"Base de Conhecimento FCJ: {conhecimento}"
+                        )},
+                        {"role": "user", "content": prompt}
+                    ],
+                    stream=True
+                )
+                
+                for chunk in response:
+                    if chunk.choices[0].delta.content:
+                        full_response += chunk.choices[0].delta.content
+                        placeholder.markdown(full_response + "▌")
+                
+                placeholder.markdown(full_response)
+                st.session_state.messages.append({"role": "assistant", "content": full_response})
 
+            except Exception as e:
+                registrar_erro_ia(st.session_state.get("usuario_id"), "MetaAI_Sidebar", "Erro", str(e))
+                placeholder.error("Mentor temporariamente offline.")
+
+# ==========================================================
+# 3. ANALISADOR DE DOCUMENTOS (USANDO GEMINI)
+# ==========================================================
 def analisar_documento_ia(upload_arquivo, nome_etapa):
-    """
-    Analisa o documento enviado e retorna um dicionário com o diagnóstico.
-    Importante: 'perguntas_faltantes' retorna como LISTA para exibição correta na UI.
-    """
-    temp_path = None
+    """Análise técnica de arquivos usando Gemini Vision/Flash"""
     try:
         model = genai.GenerativeModel(MODELO_DOCS)
-
-        instrucao_analise = f"""
-        Você é um mentor especialista da FCJ analisando a PERFORMANCE DE PREENCHIMENTO da etapa: {nome_etapa}.
         
-        OBJETIVO:
-        Avaliar o percentual de dados fornecidos no arquivo em relação ao template ideal.
-        Não avalie a qualidade do negócio, apenas a completude do documento.
-
-        REGRAS DE RETORNO:
-        1. "porcentagem": Inteiro de 0 a 100 baseado no preenchimento dos campos.
-        2. "feedback_ludico": Frase animada focada no progresso do preenchimento.
-        3. "perguntas_faltantes": Liste apenas os 5 campos essenciais que ficaram vazios ou incompletos.
-        4. "dicas": Até três dicas curtas sobre onde encontrar ou como calcular os dados faltantes.
-
-        Responda APENAS em JSON:
+        # Prompt focado em extração de dados e completude
+        prompt = f"""
+        Analise a completude do documento para a etapa: {nome_etapa}.
+        Retorne APENAS um JSON:
         {{
-            "porcentagem": (int),
+            "porcentagem": (int de 0 a 100),
             "zona": "Incompleto/Parcial/Completo",
-            "cor": "#hex",
-            "feedback_ludico": "string",
-            "perguntas_faltantes": ["lista curta de strings"],
-            "dicas": "string"
+            "cor": "#hexadecimal",
+            "feedback_ludico": "Frase de incentivo",
+            "perguntas_faltantes": ["Campo 1", "Campo 2"],
+            "dicas": "Sugestão técnica"
         }}
         """
-        
+
         if upload_arquivo.name.endswith('.xlsx'):
             df = pd.read_excel(upload_arquivo)
-            conteudo_texto = df.to_string()
-            prompt_excel = f"{instrucao_analise}\n\nDados do Arquivo:\n{conteudo_texto}"
-            response = model.generate_content(prompt_excel)
+            response = model.generate_content([prompt, f"Conteúdo do Excel:\n{df.to_string()}"])
         else:
+            # Para PDF/DOCX usa a API de arquivos do Gemini
             user_id = st.session_state.get("usuario_id", "default")
-            temp_path = f"temp_{user_id}_{int(time.time())}_{upload_arquivo.name}"
-            with open(temp_path, "wb") as f:
+            temp_name = f"temp_{user_id}_{upload_arquivo.name}"
+            with open(temp_name, "wb") as f:
                 f.write(upload_arquivo.getbuffer())
             
-            documento = genai.upload_file(path=temp_path, mime_type=upload_arquivo.type)
-            while documento.state.name == "PROCESSING":
-                time.sleep(2)
-                documento = genai.get_file(documento.name)
+            uploaded_file = genai.upload_file(path=temp_name)
+            while uploaded_file.state.name == "PROCESSING":
+                time.sleep(1)
+                uploaded_file = genai.get_file(uploaded_file.name)
             
-            response = model.generate_content([instrucao_analise, documento])
-            documento.delete()
+            response = model.generate_content([prompt, uploaded_file])
+            uploaded_file.delete()
+            os.remove(temp_name)
 
-        # Extração limpa do JSON
-        content = response.text
-        resultado = json.loads(content[content.find('{'):content.rfind('}')+1])
-        
-        # Garantir que perguntas_faltantes seja uma LISTA Python real para a interface
-        if isinstance(resultado.get("perguntas_faltantes"), str):
-            try:
-                resultado["perguntas_faltantes"] = json.loads(resultado["perguntas_faltantes"])
-            except:
-                resultado["perguntas_faltantes"] = [resultado["perguntas_faltantes"]]
-        
-        resultado.setdefault("perguntas_faltantes", [])
-        resultado.setdefault("dicas", "Continue preenchendo os dados para uma análise completa!")
-        
-        return resultado
+        # Limpeza do JSON
+        raw_text = response.text.replace('```json', '').replace('```', '').strip()
+        return json.loads(raw_text)
 
     except Exception as e:
-        registrar_erro_ia(st.session_state.get("usuario_id"), "AnaliseDoc", "Erro", str(e))
-        return {
-            "porcentagem": 0, "zona": "Erro", "cor": "#FF4B4B",
-            "feedback_ludico": "Erro técnico na análise.",
-            "perguntas_faltantes": [],
-            "dicas": ""
-        }
-    finally:
-        if temp_path and os.path.exists(temp_path):
-            os.remove(temp_path)
+        registrar_erro_ia(st.session_state.get("usuario_id"), "Gemini_Analise", "Erro", str(e))
+        return {"porcentagem": 0, "zona": "Erro", "cor": "#FF4B4B", "feedback_ludico": "Falha ao processar arquivo."}

@@ -21,9 +21,6 @@ if st.session_state.get("usuario_id") is None:
     st.switch_page("Home.py") 
     st.stop()
 
-# DEFINIÇÃO DE ID DA PÁGINA (Fundamental para evitar o erro DuplicateElementKey na sidebar)
-st.session_state["current_page"] = "q2" 
-
 # CSS para interface limpa e consistente
 st.markdown("""
     <style>
@@ -34,9 +31,9 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+st.session_state["current_page"] = "q2_page"
 aplicar_estilo_fcj()
 renderizar_menu()
-mentoria_ia_sidebar()
 
 # --- 2. VALIDAÇÃO DE ACESSO (TRAVA Q1) --- #
 def validar_acesso_q2(user_id):
@@ -54,8 +51,9 @@ def validar_acesso_q2(user_id):
         conn.close()
 
 if not validar_acesso_q2(st.session_state.get("usuario_id")):
-    st.warning("⚠️ Acesso Bloqueado: Você precisa concluir 100% das etapas do Q1 antes de iniciar o Q2.")
-    if st.button("⬅️ Voltar para o Q1"):
+    st.warning("⚠️ Acesso Bloqueado: Você precisa concluir 100% das etapas do Q1 antes de iniciar o Q2.")     
+    if st.button("⬅️ Voltar para o Q1", type="primary", use_container_width="stretch", key="btn_voltar_q1"):
+        st.session_state["current_page"] = "q1_page" 
         st.switch_page("pages/Trimestre Q1.py")
     st.stop()
 
@@ -119,33 +117,46 @@ def Q2_page():
                     st.warning("🔒 Conclua a etapa anterior para liberar esta.")
                 else:
                     st.markdown("#### 1. Preparação")
-                    if temp['caminho_arquivo'] and os.path.exists(temp['caminho_arquivo']):
-                        with open(temp['caminho_arquivo'], "rb") as f:
-                            st.download_button(
-                                label="⬇️ Baixar Template Modelo", 
-                                data=f, 
-                                file_name=temp['nome_arquivo_original'],
-                                key=f"dl_q2_{t_id}", 
-                                use_container_width=True
-                            )
+                    nome_físico = os.path.basename(temp['caminho_arquivo'])
+                    caminho_nuvem = os.path.join("assets", "templates", nome_físico)
                     
-                    st.write("")
+                    if os.path.exists(caminho_nuvem):
+                        try:
+                            with open(caminho_nuvem, "rb") as f:
+                                templates_bytes = f.read()
+                                
+                                st.download_button(
+                                    label="⬇️ Baixar Template Modelo",
+                                    data=templates_bytes,
+                                    file_name=temp['nome_arquivo_original'],
+                                    mime="application/octet-stream",
+                                    key=f"dl_q2_{t_id}",
+                                    width="stretch"
+                                )
+                        except Exception as e:
+                            st.error(f"Erro ao processar download: {e}")
+                    else:
+                        st.error(f"Arquivo não encontrado no servidor: {nome_físico}")
+                
+                     # --- UPLOAD E ANÁLISE ---
+                    st.write("") 
                     st.markdown("#### 2. Entrega e Validação")
-                    up = st.file_uploader("Submeta seu arquivo", type=['xlsx', 'pdf', 'docx'], key=f"up_q2_{t_id}")
-
-                    if up:
+                    upload_arquivo = st.file_uploader("Submeta seu arquivo (Excel, PDF ou Word)", type=['xlsx', 'pdf', 'docx'], key=f"up_q2_{t_id}")
+                   
+                    if upload_arquivo:
                         _, col_btn, _ = st.columns([1, 1, 1])
                         with col_btn:
-                            if st.button("🤖 Analisar Documento", key=f"btn_ia_q2_{t_id}", type="primary", use_container_width=True):
+                            if st.button(f"🤖 Analisar Documento", key=f"btn_ia_q2_{t_id}", type="primary", width="stretch"):
                                 with st.spinner("O Agente IA está revisando..."):
-                                    resultado = analisar_documento_ia(up, nome_etapa)
+                                    resultado = analisar_documento_ia(upload_arquivo, nome_etapa)
+                                    
                                     if resultado.get('porcentagem', 0) > 0:
-                                        if salvar_entrega_e_feedback(user_id, nome_etapa, up, resultado):
+                                        if salvar_entrega_e_feedback(user_id, nome_etapa, upload_arquivo, resultado):
                                             salvar_conclusao_etapa(user_id, nome_etapa)
-                                            st.toast("Análise finalizada!")
+                                            st.toast("Análise finalizada com sucesso!")
                                             st.rerun()
                                     else:
-                                        st.error(f"Erro: {resultado.get('feedback_ludico')}")
+                                        st.error(f"Não foi possível validar: {resultado.get('feedback_ludico')}")
 
                     # EXIBIÇÃO DO FEEDBACK IA
                     if f"feedback_{t_id}" in st.session_state:
@@ -154,7 +165,7 @@ def Q2_page():
                         
                         c1, c2 = st.columns([1, 2])
                         with c1:
-                            st.plotly_chart(criar_grafico_circular(res['porcentagem']), use_container_width=True, config={'displayModeBar': False})
+                            st.plotly_chart(criar_grafico_circular(res['porcentagem']), width="stretch", config={'displayModeBar': False})
                         with c2:
                             st.markdown(f"#### Diagnóstico de Maturidade")
                             st.markdown(f"**Nível:** <span style='color:{res['cor']}; font-weight:bold;'>{res['zona']}</span>", unsafe_allow_html=True)
@@ -196,10 +207,14 @@ def Q2_page():
                 st.progress(p_val)
             with col_p2:
                 if p_val == 1.0: 
-                    if st.button("Próximo Trimestre 🚀", key="btn_next_q3", type="primary"):
+                    if st.button("Próximo Trimestre 🚀", type="primary", width="stretch"):
+                        st.session_state["current_page"] = "q3_page" # Atualiza o estado antes de mudar
                         st.switch_page("pages/Trimestre Q3.py")
+
     finally:
-        conn.close()
+        if conn and conn.is_connected():
+            cursor.close()
+            conn.close()
 
 if __name__ == "__main__":
     Q2_page()

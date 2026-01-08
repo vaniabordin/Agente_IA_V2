@@ -163,18 +163,28 @@ def salvar_entrega_e_feedback(usuario_id, etapa, arquivo_objeto, feedback_json):
     
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        nome_limpo = "".join(c for c in arquivo_objeto.name if c.isalnum() or c in "._-").strip()
+               
+        # Garante que pega apenas o nome do arquivo, sem pastas do SO do usuário
+        nome_original = os.path.basename(arquivo_objeto.name)
+        nome_limpo = "".join(c for c in nome_original if c.isalnum() or c in "._-").strip()
         nome_unico = f"user_{usuario_id}_{timestamp}_{nome_limpo}"
         
+        # Caminho onde o arquivo será gravado fisicamente no servidor
         caminho_fisico = os.path.join(UPLOAD_DIR, nome_unico)
-        
+                
         with open(caminho_fisico, "wb") as f:
             f.write(arquivo_objeto.getbuffer())
         
-        caminho_banco = nome_unico
-               
-        if isinstance(feedback_json, str):
-            feedback_json = json.loads(feedback_json)
+        # Caminho que será gravado no banco (ajustado para manter o padrão da linha 6 da imagem)
+        caminho_banco = f"uploads/entregas_alunos/{nome_unico}"
+        # caminho_banco = os.path.join("uploads/entregas_alunos", nome_unico).replace("\\", "/")
+                       
+        if isinstance(feedback_json, str):          
+            try:
+                feedback_json = json.loads(feedback_json)
+            except json.JSONDecodeError:
+                # Caso a string não seja um JSON válido
+                feedback_json = {}
         
         perguntas_str = json.dumps(feedback_json.get('perguntas_faltantes', []))
         dicas_str = feedback_json.get('dicas', '')
@@ -185,7 +195,7 @@ def salvar_entrega_e_feedback(usuario_id, etapa, arquivo_objeto, feedback_json):
              porcentagem, zona, feedback_ludico, cor, perguntas_faltantes, dicas)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(query, (
+        valores = (
             usuario_id, etapa.strip(), 
             caminho_banco, 
             arquivo_objeto.name,
@@ -195,14 +205,18 @@ def salvar_entrega_e_feedback(usuario_id, etapa, arquivo_objeto, feedback_json):
             feedback_json.get('cor', '#FFFFFF'),
             perguntas_str, 
             dicas_str
-        ))
+        )
         
+        cursor.execute(query, valores)
         conn.commit()
-        return True
-    
+        return True    
+        
     except Exception as e:
-        st.error(f"❌ Erro ao salvar entrega: {e}")
+        if conn:
+            conn.rollback() # Reverte em caso de erro no meio do processo
+        st.error(f"❌ Erro ao salvar no banco: {str(e)}")
         return False
+        
     finally:
         if cursor:
             cursor.close()

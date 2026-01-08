@@ -17,21 +17,25 @@ def criar_link_download_clean(caminho_arquivo, nome_exibicao):
     if not caminho_arquivo:
         return "<span style='color: gray;'>Não disponível</span>"
     
-    diretorio_atual = os.path.dirname(os.path.abspath(__file__))
-    raiz_projeto = os.path.dirname(diretorio_atual)
-    caminho_completo = os.path.join(raiz_projeto, caminho_arquivo)
+   # Pega apenas o nome do arquivo para garantir que não haja caminhos duplicados
+    nome_fisico = os.path.basename(caminho_arquivo)    
+    # Localização correta: Raiz do Projeto -> assets -> templates
+    caminho_completo = os.path.join(os.getcwd(), "assets", "templates", nome_fisico)
     
     if os.path.exists(caminho_completo):
         try:
             with open(caminho_completo, "rb") as f:
                 data = f.read()
+                
             b64 = base64.b64encode(data).decode()
-            href = f'<a href="data:application/octet-stream;base64,{b64}" download="{nome_exibicao}" style="text-decoration: none; color: #1f77b4; font-weight: bold;">📄 {nome_exibicao}</a>'
+            
+            mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" if nome_fisico.endswith('.xlsx') else "application/octet-stream"
+            href = f'<a href="data:{mime_type};base64,{b64}" download="{nome_exibicao}" style="text-decoration: none; color: #1f77b4; font-weight: bold;">📄 {nome_exibicao}</a>'
             return href
         except Exception as e:
-            return f"<span style='color: red;'>Erro ao ler</span>"
+            return f"<span style='color: red;'>Erro de leitura</span>"
     
-    return "<span style='color: gray;'>Não disponível</span>"
+    return "<span style='color: gray;'>Indisponível (Offline)</span>"
 
 # --------------------------------
 # PÁGINA DO TEMPLATE 
@@ -114,8 +118,10 @@ def cria_templates_page():
                 c[0].write(f"`{row['id']}`")
                 c[1].write(row['nome_formulario'])
                 c[2].write(row['template'])
-                c[3].markdown(criar_link_download_clean(row['caminho_arquivo'], row['nome_arquivo_original']), unsafe_allow_html=True)
-          
+                
+                link_html = criar_link_download_clean(row['caminho_arquivo'], row['nome_arquivo_original'])
+                c[3].markdown(link_html, unsafe_allow_html=True)
+                
                 with c[4]:
                     btn_col1, btn_col2 = st.columns(2)
                     

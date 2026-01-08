@@ -47,31 +47,32 @@ def processar_conteudo_ia(origem_conteudo, nome_para_db=None):
             
             # Se for um upload do Streamlit, precisamos salvar fisicamente para o Gemini ler
             if hasattr(origem_conteudo, 'read'):
-                temp_dir = tempfile.gettempdir()                
-                if not os.path.exists(temp_dir):
-                    os.makedirs(temp_dir)
+                diretorio_base = os.path.join(os.getcwd(), "knowledge_base")
+                                
+                if not os.path.exists(diretorio_base):
+                    os.makedirs(diretorio_base)
                 
-                caminho_temp = os.path.join(temp_dir, origem_conteudo.name)
-                with open(caminho_temp, "wb") as f:
+                nome_limpo = os.path.basename(origem_conteudo.name)
+                caminho_salvamento = os.path.join(diretorio_base, nome_limpo)
+                
+                with open(caminho_salvamento, "wb") as f:
                     f.write(origem_conteudo.getbuffer())
                 
-                caminho_final_banco = caminho_temp
-                arquivo_para_processar = caminho_temp
+                caminho_final_banco = caminho_salvamento
+                arquivo_para_processar = caminho_salvamento
             else:
                 arquivo_para_processar = origem_conteudo
                 caminho_final_banco = origem_conteudo
 
-            nome_arquivo = nome_para_db if nome_para_db else os.path.basename(arquivo_para_processar)
-            
             # Upload para o Google Gemini
             documento = genai.upload_file(path=arquivo_para_processar)
             
             prompt = (
-                f"Extraia todo o conteúdo textual do arquivo {nome_arquivo}. "
+                f"Extraia todo o conteúdo textual do documento. "
                 "Retorne apenas o texto puro do documento para ser usado como base de conhecimento "
                 "de uma IA acadêmica. Mantenha a fidelidade aos dados."
             )
-            
+                        
             response = model.generate_content([prompt, documento])
             conteudo_extraido = response.text
             

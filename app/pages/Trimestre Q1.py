@@ -109,11 +109,8 @@ def Q1_page():
                     st.markdown("#### 1. Preparação")
                     
                     nome_fisico = os.path.basename(temp['caminho_arquivo'])
-                    diretorio_atual = os.path.dirname(os.path.abspath(__file__))                   
-                    raiz_projeto = os.path.dirname(diretorio_atual)
-                    
-                    caminho_completo = os.path.join(raiz_projeto, "assets", "templates", nome_fisico)
-                    
+                    caminho_completo = os.path.join(os.getcwd(), "assets", "templates", nome_fisico)
+                                        
                     if not os.path.exists(caminho_completo):
                         st.error(f"Arquivo não encontrado no servidor: {nome_fisico}")
                     else:

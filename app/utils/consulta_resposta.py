@@ -53,11 +53,12 @@ def aba_consulta_respostas():
                 with st.expander(f"📅 {entrega['etapa']} - Avaliado em: {data_formatada}"):
                     # Conteúdo interno (Download e Diagnóstico)
                     st.markdown("### 📥 Arquivo Enviado")
+                       
+                                     
+                    nome_fisico = os.path.basename(entrega['caminho_arquivo_aluno'])
                     
-                    caminho_relativo = entrega['caminho_arquivo_aluno']                    
-                    diretorio_atual = os.path.dirname(os.path.abspath(__file__))                    
-                    raiz_projeto = os.path.dirname(diretorio_atual) 
-                    caminho_completo = os.path.join(raiz_projeto, caminho_relativo) if caminho_relativo else None
+                    # O arquivo do aluno está em 'uploads/entregas_alunos'
+                    caminho_completo = os.path.join(os.getcwd(), "uploads", "entregas_alunos", nome_fisico)
                     
                     # --- AJUSTE NO CAMINHO E DOWNLOAD ---
                     if caminho_completo and os.path.exists(caminho_completo):

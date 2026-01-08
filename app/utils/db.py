@@ -1,5 +1,6 @@
 import bcrypt
 import mysql.connector
+from sqlalchemy import create_engine, text
 import pandas as pd
 from mysql.connector import Error
 import os
@@ -12,7 +13,7 @@ import streamlit as st
 # ==========================================================
 
 def conectar(incluir_db=True):
-    """Estabelece a conexão com o banco de dados via st.secrets."""
+    """Estabelece a conexão com o banco de dados via st.secrets para INSERT/UPDATE."""
     try:
         config = {                       
             "host": st.secrets["mysql"]["host"],
@@ -27,20 +28,32 @@ def conectar(incluir_db=True):
             config["database"] = st.secrets["mysql"]["database"]
         return mysql.connector.connect(**config)
     except Exception as e:
-        st.error(f"Erro ao conectar no banco: {e}")
+        st.error(f"Erro ao conectar no banco (Driver): {e}")
         return None
 
-# --- LÓGICA DE CAMINHOS TÉCNICOS (FOGUETE PRONTO PARA DECOLAR) ---
-# Descobre a raiz do projeto dinamicamente para evitar erros de "Pasta não encontrada"
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+def get_engine():
+    """Cria o engine SQLAlchemy para leitura de tabelas com Pandas."""
+    user = st.secrets["mysql"]["user"]
+    pw = st.secrets["mysql"]["password"]
+    host = st.secrets["mysql"]["host"]
+    port = st.secrets["mysql"]["port"]
+    db = st.secrets["mysql"]["database"]
+    url = f"mysql+mysqlconnector://{user}:{pw}@{host}:{port}/{db}"
+    return create_engine(url)
 
-# Diretórios principais baseados na raiz
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "entregas_alunos")
-IA_KNOWLEDGE_DIR = os.path.join(BASE_DIR, "knowledge_base")
+# --- LÓGICA DE CAMINHOS TÉCNICOS (AJUSTADA PARA STREAMLIT CLOUD) ---
+# os.getcwd() garante que a raiz seja a pasta principal do GitHub no servidor
+RAIZ_PROJETO = os.getcwd()
 
-# Garante que as pastas existam fisicamente
+# Diretórios principais baseados na raiz real
+UPLOAD_DIR = os.path.join(RAIZ_PROJETO, "uploads", "entregas_alunos")
+IA_KNOWLEDGE_DIR = os.path.join(RAIZ_PROJETO, "knowledge_base")
+TEMPLATES_DIR = os.path.join(RAIZ_PROJETO, "assets", "templates")
+
+# Garante que as pastas existam fisicamente no servidor
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(IA_KNOWLEDGE_DIR, exist_ok=True)
+os.makedirs(TEMPLATES_DIR, exist_ok=True)
 
 # ==========================================================
 # 2. INFRAESTRUTURA (INIT DB)
@@ -52,8 +65,7 @@ def init_db():
     if not conn: return
     try:
         with conn.cursor() as cur:
-            # Tabelas omitidas aqui para brevidade, mas o seu código original de CREATE TABLE está perfeito.
-            # Mantenha todos os cur.execute que você já possui.
+            # Aqui devem estar seus comandos CREATE TABLE IF NOT EXISTS
             conn.commit()        
     except Error as e:
         conn.rollback()
@@ -144,27 +156,20 @@ def salvar_conclusao_etapa(usuario_id, nome_etapa):
         conn.close()
 
 def salvar_entrega_e_feedback(usuario_id, etapa, arquivo_objeto, feedback_json):
-    """Salva o arquivo do aluno e o parecer da IA com caminhos dinâmicos."""
+    """Salva o arquivo do aluno e o parecer da IA."""
     conn = conectar()
     if not conn: return False
     cursor = conn.cursor()
     try:
-        # 1. Ajuste de caminhos dinâmicos
-        diretorio_script = os.path.dirname(os.path.abspath(__file__))
-        raiz_projeto = os.path.dirname(os.path.dirname(diretorio_script))
-        pasta_uploads = os.path.join(raiz_projeto, "uploads", "entregas_alunos")
-        os.makedirs(pasta_uploads, exist_ok=True)
-            
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         nome_limpo = "".join(c for c in arquivo_objeto.name if c.isalnum() or c in "._-").strip()
         nome_unico = f"user_{usuario_id}_{timestamp}_{nome_limpo}"
         
-        caminho_fisico = os.path.join(pasta_uploads, nome_unico)
+        caminho_fisico = os.path.join(UPLOAD_DIR, nome_unico)
 
         with open(caminho_fisico, "wb") as f:
             f.write(arquivo_objeto.getbuffer())
             
-        # Caminho para o banco (limpo, sem prefixos de sistema)
         caminho_banco = f"uploads/entregas_alunos/{nome_unico}"
         
         if isinstance(feedback_json, str):
@@ -227,22 +232,18 @@ def buscar_ultimo_feedback_ia(usuario_id, etapa=None):
         conn.close()
 
 def buscar_envios_startups():
-    conn = conectar()
-    if conn:
-        try:
-            query = """
-                SELECT a.id, u.username, a.etapa, a.porcentagem, a.data_avaliacao, a.caminho_arquivo_aluno 
-                FROM avaliacoes_ia a
-                JOIN usuarios u ON a.usuario_id = u.id
-                ORDER BY a.data_avaliacao DESC
-            """
-            return pd.read_sql(query, conn)
-        except Exception as e:
-            print(f"Erro ao buscar envios: {e}")
-            return pd.DataFrame()
-        finally:
-            conn.close()
-    return pd.DataFrame()
+    try:
+        engine = get_engine()
+        query = """
+            SELECT a.id, u.username, a.etapa, a.porcentagem, a.data_avaliacao, a.caminho_arquivo_aluno 
+            FROM avaliacoes_ia a
+            JOIN usuarios u ON a.usuario_id = u.id
+            ORDER BY a.data_avaliacao DESC
+        """
+        return pd.read_sql(query, engine)
+    except Exception as e:
+        print(f"Erro ao buscar envios: {e}")
+        return pd.DataFrame()
 
 def buscar_usuario_id(username):
     conn = conectar()
@@ -289,7 +290,7 @@ def excluir_template(id_template):
         conn.close()
 
 def salvar_template_db(nome_form, trimestre, arquivo_objeto, id_editando=None):
-    """Gerencia a inserção e atualização de templates com caminhos inteligentes."""
+    """Gerencia a inserção e atualização de templates."""
     conn = conectar()
     if not conn: return False
     try:
@@ -297,15 +298,10 @@ def salvar_template_db(nome_form, trimestre, arquivo_objeto, id_editando=None):
         caminho_final_banco = None 
         
         if arquivo_objeto:
-            diretorio_script = os.path.dirname(os.path.abspath(__file__))
-            raiz_projeto = os.path.dirname(os.path.dirname(diretorio_script))
-            pasta_destino = os.path.join(raiz_projeto, "assets", "templates")
-            os.makedirs(pasta_destino, exist_ok=True)
-            
             nome_unico = f"{datetime.now().strftime('%Y%m%d%H%M')}_{arquivo_objeto.name}"
-            caminho_fisico = os.path.join(pasta_destino, nome_unico)
+            caminho_fisico = os.path.join(TEMPLATES_DIR, nome_unico)
             
-            # Ajuste: Caminho limpo para o banco
+            # Caminho relativo para salvar no banco
             caminho_final_banco = f"assets/templates/{nome_unico}"
             
             with open(caminho_fisico, "wb") as f:
@@ -339,13 +335,13 @@ def salvar_template_db(nome_form, trimestre, arquivo_objeto, id_editando=None):
         conn.close()
 
 def listar_templates_db():
-    conn = conectar()
-    if conn:
-        try:
-            return pd.read_sql("SELECT id, nome_formulario, template, nome_arquivo_original, caminho_arquivo, status FROM arquivos_templates ORDER BY template ASC, id DESC", conn)
-        finally:
-            conn.close()
-    return pd.DataFrame()
+    try:
+        engine = get_engine()
+        query ="SELECT id, nome_formulario, template, nome_arquivo_original, caminho_arquivo, status FROM arquivos_templates ORDER BY template ASC, id DESC"
+        return pd.read_sql(query, engine)
+    except Exception as e:
+        print(f"Erro ao listar templates: {e}")
+        return pd.DataFrame()
 
 # ==========================================================
 # 7. CONHECIMENTO DA IA
@@ -394,17 +390,13 @@ def registrar_no_banco(nome, tipo, caminho, descricao, texto_extraido):
     return False
 
 def consultar_base_ativa():
-    conn = conectar()
-    if conn:
-        try:
-            query = "SELECT id, nome, tipo_conteudo, caminho_ou_url, descricao, data_subida FROM ia_conhecimento ORDER BY id DESC"
-            return pd.read_sql(query, conn)
-        except Exception as e:
-            st.error(f"Erro ao consultar banco: {e}")
-            return pd.DataFrame()
-        finally:
-            conn.close()
-    return pd.DataFrame()
+    try:
+        engine = get_engine()
+        query = "SELECT id, nome, tipo_conteudo, caminho_ou_url, descricao, data_subida FROM ia_conhecimento ORDER BY id DESC"
+        return pd.read_sql(query, engine)
+    except Exception as e:
+        st.error(f"Erro ao consultar banco: {e}")
+        return pd.DataFrame()
 
 def deletar_material_db(id_db):
     conn = conectar()

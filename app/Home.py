@@ -28,7 +28,6 @@ st.set_page_config(
 )
 
 # --- 2. INICIALIZAÇÃO E CONTROLE DE ACESSO ---
-init_db()
 
 if "db_initialized" not in st.session_state:
     init_db()

@@ -1,7 +1,21 @@
 import streamlit as st
 import pandas as pd
 import time
+import os  # Adicionado para reconhecer as variáveis de ambiente
+from dotenv import load_dotenv  # Adicionado para ler o arquivo .env
 from utils.db import conectar, cadastrar_usuario_db, remover_usuario_db
+from sqlalchemy import create_engine
+
+# Carrega as variáveis do arquivo .env que foi configurado
+load_dotenv()
+# Pega as credenciais do .env
+DB_USER = os.getenv("DB_USER")
+DB_PASS = os.getenv("DB_PASS")
+DB_HOST = os.getenv("DB_HOST")
+DB_NAME = os.getenv("DB_NAME")
+
+# Cria o engine corretamente para o SQLAlchemy
+engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}")
 
 def exibir_usuarios_admin():
     # --- AJUSTE DE CSS PARA PADRONIZAÇÃO ---
@@ -53,7 +67,7 @@ def exibir_usuarios_admin():
     if conn:
         try:
             query = "SELECT id, username, role, ativo FROM usuarios ORDER BY username ASC"
-            df_users = pd.read_sql(query, conn)
+            df_users = pd.read_sql(query, engine)
             
             if not df_users.empty:
                 # Cabeçalho
@@ -75,8 +89,9 @@ def exibir_usuarios_admin():
                         else:
                             if st.button("🗑️", key=f"user_del_{row['id']}"):
                                 remover_usuario_db(row['id'], row['username'])
+                                st.rerun()
                     st.markdown('<hr style="margin: 0.5rem 0; opacity: 0.1;">', unsafe_allow_html=True)
             else:
                 st.info("Nenhum usuário encontrado.")
-        finally:
-            conn.close()
+        except Exception as e:
+         st.error(f"Erro ao conectar no banco: {e}")

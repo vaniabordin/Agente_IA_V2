@@ -3,3 +3,4 @@ venv/
 .venv_novo/
 __pycache__/
 .streamlit/secrets.toml
+.env

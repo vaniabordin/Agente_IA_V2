@@ -26,7 +26,7 @@ try:
 except Exception:
     st.error("Chave META_AI_API_KEY ausente.")
     
-MODELO_DOCS = 'gemini-1.5-flash' 
+MODELO_DOCS = 'gemini-2.5-flash' 
 MODELO_META = 'llama-3.3-70b-versatile'
 
 # ==========================================================

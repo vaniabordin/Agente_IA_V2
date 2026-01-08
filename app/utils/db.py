@@ -516,7 +516,7 @@ def salvar_template_db(nome_form, trimestre, arquivo_objeto, id_editando=None):
         # 1. Se houver um novo arquivo, salva fisicamente
         if arquivo_objeto:
             # AJUSTE: Pasta alinhada com as páginas de Trimestre
-            pasta_destino = os.path.join("assets", "templates")
+            pasta_destino = os.path.join("app","assets", "templates")
             if not os.path.exists(pasta_destino): 
                 os.makedirs(pasta_destino)
             

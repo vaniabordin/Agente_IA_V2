@@ -5,6 +5,7 @@ from openai import OpenAI
 import os
 import json
 import time
+import tempfile
 from utils.db import registrar_erro_ia, buscar_conhecimento_ia
 
 # ==========================================================
@@ -131,30 +132,51 @@ def analisar_documento_ia(upload_arquivo, nome_etapa):
             "dicas": "Sugestão técnica"
         }}
         """
-
+        # TRATAMENTO PARA EXCEL
         if upload_arquivo.name.endswith('.xlsx'):
             df = pd.read_excel(upload_arquivo)
-            response = model.generate_content([prompt, f"Conteúdo do Excel:\n{df.to_string()}"])
+            conteudo_texto = df.to_string(index=False, max_rows=100) 
+            response = model.generate_content([prompt, f"Conteúdo do Excel:\n{conteudo_texto}"])            
+        
+        # TRATAMENTO PARA PDF/DOCX (API DE ARQUIVOS)
         else:
-            # Para PDF/DOCX usa a API de arquivos do Gemini
-            user_id = st.session_state.get("usuario_id", "default")
-            temp_name = f"temp_{user_id}_{upload_arquivo.name}"
-            with open(temp_name, "wb") as f:
-                f.write(upload_arquivo.getbuffer())
-            
-            uploaded_file = genai.upload_file(path=temp_name)
-            while uploaded_file.state.name == "PROCESSING":
-                time.sleep(1)
-                uploaded_file = genai.get_file(uploaded_file.name)
-            
-            response = model.generate_content([prompt, uploaded_file])
-            uploaded_file.delete()
-            os.remove(temp_name)
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{upload_arquivo.name}") as tmp_file:
+                tmp_file.write(upload_arquivo.getbuffer())
+                temp_path = tmp_file.name
+                
+            try:      
+                      
+                uploaded_file = genai.upload_file(path=temp_path)
+                
+                while uploaded_file.state.name == "PROCESSING":
+                    time.sleep(1)
+                    uploaded_file = genai.get_file(uploaded_file.name)
+                
+                if uploaded_file.state.name == "FAILED":
+                    raise Exception("Gemini falhou ao processar o arquivo enviado.")
+                
+                response = model.generate_content([prompt, uploaded_file])
+               
+                uploaded_file.delete()
+            finally:
+                if os.path.exists(temp_path):
+                        os.remove(temp_path)
 
-        # Limpeza do JSON
-        raw_text = response.text.replace('```json', '').replace('```', '').strip()
-        return json.loads(raw_text)
+       # Limpeza e Parsing do JSON
+        raw_text = response.text
+        if "```json" in raw_text:
+            raw_text = raw_text.split("```json")[1].split("```")[0]
+        elif "```" in raw_text:
+            raw_text = raw_text.split("```")[1].split("```")[0]
+        
+        return json.loads(raw_text.strip())
 
     except Exception as e:
-        registrar_erro_ia(st.session_state.get("usuario_id"), "Gemini_Analise", "Erro", str(e))
-        return {"porcentagem": 0, "zona": "Erro", "cor": "#FF4B4B", "feedback_ludico": "Falha ao processar arquivo."}
+        # Registrar o erro detalhado no seu banco para debug
+        registrar_erro_ia(st.session_state.get("usuario_id"), nome_etapa, "Gemini_Analise", str(e))
+        return {
+            "porcentagem": 0, 
+            "zona": "Erro", 
+            "cor": "#FF4B4B", 
+            "feedback_ludico": f"Erro na análise: {str(e)}"
+        }

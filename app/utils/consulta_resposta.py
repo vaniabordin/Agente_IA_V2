@@ -54,14 +54,13 @@ def aba_consulta_respostas():
                     # Conteúdo interno (Download e Diagnóstico)
                     st.markdown("### 📥 Arquivo Enviado")
                        
-                                     
-                    nome_fisico = os.path.basename(entrega['caminho_arquivo_aluno'])
-                    
+                    # ---CAMINHO E DOWNLOAD ---#                                     
+                    caminho_db = entrega['caminho_arquivo_aluno'] 
+                    nome_fisico = os.path.basename(caminho_db)                   
                     # O arquivo do aluno está em 'uploads/entregas_alunos'
                     caminho_completo = os.path.join(os.getcwd(), "uploads", "entregas_alunos", nome_fisico)
-                    
-                    # --- AJUSTE NO CAMINHO E DOWNLOAD ---
-                    if caminho_completo and os.path.exists(caminho_completo):
+                                                           
+                    if os.path.exists(caminho_completo):
                         try:
                             with open(caminho_completo, "rb") as f:
                                 conteudo_arquivo = f.read()
@@ -76,7 +75,8 @@ def aba_consulta_respostas():
                         except Exception as e:
                             st.error(f"Erro ao ler arquivo para download: {e}")
                     else:
-                        st.error("⚠️ Arquivo físico não encontrado no servidor.")
+                        st.error(f"⚠️ Arquivo não encontrado.")
+                        st.caption(f"Caminho esperado: `{caminho_completo}`")
                     
                     st.divider()
                     st.markdown("### 🤖 Diagnóstico da IA")

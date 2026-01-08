@@ -138,17 +138,26 @@ def Q1_page():
                         _, col_btn, _ = st.columns([1, 1, 1])
                         with col_btn:
                             if st.button(f"🤖 Analisar Documento", key=f"btn_ia_q1_{t_id}", type="primary", width="stretch"):
-                                with st.spinner("O Agente IA está revisando..."):
-                                    resultado = analisar_documento_ia(upload_arquivo, nome_etapa)
-                                    
-                                    if resultado.get('porcentagem', 0) > 0:
-                                        if salvar_entrega_e_feedback(user_id, nome_etapa, upload_arquivo, resultado):
-                                            salvar_conclusao_etapa(user_id, nome_etapa)
-                                            st.toast("Análise finalizada com sucesso!")
-                                            st.rerun()
-                                    else:
-                                        st.error(f"Não foi possível validar: {resultado.get('feedback_ludico')}")
+                                with st.spinner("O Agente IA está analisando..."):
+                                    try:
+                                        # 1. Chamar a análise da IA
+                                        resultado = analisar_documento_ia(upload_arquivo, nome_etapa)
+                                        # 2. Verificação Robusta do resultado
+                                        if resultado and isinstance(resultado, dict) and resultado.get('porcentagem', 0) > 0:
+                                            # 3. SÓ SALVA SE TIVER RESULTADO
+                                            sucesso_db = salvar_entrega_e_feedback(user_id, nome_etapa, upload_arquivo, resultado)
+                                            if sucesso_db:
 
+                                                salvar_conclusao_etapa(user_id, nome_etapa)
+                                                st.toast("Análise finalizada com sucesso!")
+                                                st.rerun()
+                                            else:
+                                                # Caso a IA retorne erro ou porcentagem 0
+                                                msg_erro = resultado.get('feedback_ludico', 'Erro desconhecido na análise da IA.')
+                                                st.error(f"A IA não conseguiu validar este arquivo: {msg_erro}")
+                                    except Exception as e:
+                                        st.error(f"Erro crítico no processamento: {e}")
+                                        
                     # --- EXIBIÇÃO DE RESULTADOS IA ---
                     if f"feedback_{t_id}" in st.session_state:
                         res = st.session_state[f"feedback_{t_id}"]

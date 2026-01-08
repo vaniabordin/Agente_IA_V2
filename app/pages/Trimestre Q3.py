@@ -55,13 +55,14 @@ def validar_acesso_q3(user_id):
 
 if not validar_acesso_q3(st.session_state.get("usuario_id")):
     st.warning("⚠️ Acesso Bloqueado: Você precisa concluir 100% das etapas do Q2 antes de iniciar o Q3.")
-    if st.button("⬅️ Voltar para o Q2", type="primary", width="stretch", key="btn_voltar_q2"):
-        st.session_state["current_page"] = "q2_page" 
-        st.switch_page("pages/Trimestre Q2.py")
     
-    # Interrompe a execução aqui para não mostrar o título "Q3 - Escala"
+    col_v1, col_v2, col_v3 = st.columns([3, 1, 3])
+    with col_v2:
+        if st.button("⬅️ Voltar para o Q2", type="primary", width="stretch", key="btn_voltar_q2"):
+            st.session_state["current_page"] = "q2_page" 
+            st.switch_page("pages/Trimestre Q2.py")
     st.stop()
-
+    
 # --- 3. PÁGINA PRINCIPAL Q3 --- #
 def Q3_page():
     st.title("Q3 - Escala: Crescimento com Eficiência")
@@ -122,7 +123,6 @@ def Q3_page():
                     st.warning("🔒 Conclua a etapa anterior para liberar esta.")
                 else:
                     st.markdown("#### 1. Preparação")
-                    
                        
                     nome_fisico = os.path.basename(temp['caminho_arquivo'])
                     caminho_completo = os.path.join(os.getcwd(), "assets", "templates", nome_fisico)
@@ -153,19 +153,27 @@ def Q3_page():
                     if upload_arquivo:
                         _, col_btn, _ = st.columns([1, 1, 1])
                         with col_btn:
-                            if st.button(f"🤖 Analisar Documento", key=f"btn_ia_q3_{t_id}", type="primary", width="stretch"):
-                                with st.spinner("O Agente IA está revisando..."):
-                                    resultado = analisar_documento_ia(upload_arquivo, nome_etapa)
-                                    
-                                    if resultado.get('porcentagem', 0) > 0:
-                                        if salvar_entrega_e_feedback(user_id, nome_etapa, upload_arquivo, resultado):
-                                            salvar_conclusao_etapa(user_id, nome_etapa)
-                                            st.toast("Análise finalizada com sucesso!")
-                                            st.rerun()
-                                    else:
-                                        st.error(f"Não foi possível validar: {resultado.get('feedback_ludico')}")
+                            if st.button(f"🤖 Analisar Documento", key=f"btn_ia_q1_{t_id}", type="primary", width="stretch"):
+                                with st.spinner("O Agente IA está analisando..."):
+                                    try:
+                                        # 1. Chamar a análise da IA
+                                        resultado = analisar_documento_ia(upload_arquivo, nome_etapa)
+                                        # 2. Verificação Robusta do resultado
+                                        if resultado and isinstance(resultado, dict) and resultado.get('porcentagem', 0) > 0:
+                                            # 3. SÓ SALVA SE TIVER RESULTADO
+                                            sucesso_db = salvar_entrega_e_feedback(user_id, nome_etapa, upload_arquivo, resultado)
+                                            if sucesso_db:
 
-                    # --- EXIBIÇÃO DO FEEDBACK ---
+                                                salvar_conclusao_etapa(user_id, nome_etapa)
+                                                st.toast("Análise finalizada com sucesso!")
+                                                st.rerun()
+                                            else:
+                                                # Caso a IA retorne erro ou porcentagem 0
+                                                msg_erro = resultado.get('feedback_ludico', 'Erro desconhecido na análise da IA.')
+                                                st.error(f"A IA não conseguiu validar este arquivo: {msg_erro}")
+                                    except Exception as e:
+                                        st.error(f"Erro crítico no processamento: {e}")
+                                                    # --- EXIBIÇÃO DO FEEDBACK ---
                     if f"feedback_{t_id}" in st.session_state:
                         res = st.session_state[f"feedback_{t_id}"]
                         st.divider()

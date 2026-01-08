@@ -162,8 +162,7 @@ def salvar_entrega_e_feedback(usuario_id, etapa, arquivo_objeto, feedback_json):
     cursor = conn.cursor()
     
     try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-               
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")               
         # Garante que pega apenas o nome do arquivo, sem pastas do SO do usuário
         nome_original = os.path.basename(arquivo_objeto.name)
         nome_limpo = "".join(c for c in nome_original if c.isalnum() or c in "._-").strip()
@@ -177,51 +176,47 @@ def salvar_entrega_e_feedback(usuario_id, etapa, arquivo_objeto, feedback_json):
         
         # Caminho que será gravado no banco (ajustado para manter o padrão da linha 6 da imagem)
         caminho_banco = f"uploads/entregas_alunos/{nome_unico}"
-        # caminho_banco = os.path.join("uploads/entregas_alunos", nome_unico).replace("\\", "/")
-                       
+                               
         if isinstance(feedback_json, str):          
             try:
-                feedback_json = json.loads(feedback_json)
-            except json.JSONDecodeError:
-                # Caso a string não seja um JSON válido
-                feedback_json = {}
+                # Remove possíveis marcações de markdown (```json ... ```) que a IA às vezes envia
+                feedback_limpo = feedback_json.replace("```json", "").replace("```", "").strip()
+                feedback_json = json.loads(feedback_limpo)
+            except Exception as e:
+                st.warning(f"⚠️ IA retornou feedback em formato inválido. Salvando logs de erro.")
+                feedback_json = {"porcentagem": 0, "zona": "Erro de Formatação", "dicas": feedback_json}
         
-        perguntas_str = json.dumps(feedback_json.get('perguntas_faltantes', []))
+        # Extração segura dos campos
+        porcentagem = feedback_json.get('porcentagem', 0)
+        zona = feedback_json.get('zona', 'Erro')
+        feedback_ludico = feedback_json.get('feedback_ludico', 'Não foi possível gerar o parecer.')
+        cor = feedback_json.get('cor', '#FF0000')
+        
+        perguntas_faltantes = feedback_json.get('perguntas_faltantes', [])
+        perguntas_str = json.dumps(perguntas_faltantes)
         dicas_str = feedback_json.get('dicas', '')
         
+        # 3. Inserção no Banco
         query = """
             INSERT INTO avaliacoes_ia 
             (usuario_id, etapa, caminho_arquivo_aluno, nome_arquivo_original, 
              porcentagem, zona, feedback_ludico, cor, perguntas_faltantes, dicas)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        valores = (
-            usuario_id, etapa.strip(), 
-            caminho_banco, 
-            arquivo_objeto.name,
-            feedback_json.get('porcentagem', 0), 
-            feedback_json.get('zona', 'N/A'), 
-            feedback_json.get('feedback_ludico', ''), 
-            feedback_json.get('cor', '#FFFFFF'),
-            perguntas_str, 
-            dicas_str
-        )
+        cursor.execute(query, (
+            usuario_id, etapa.strip(), caminho_banco, nome_original,
+            porcentagem, zona, feedback_ludico, cor, perguntas_str, dicas_str
+        ))
         
-        cursor.execute(query, valores)
         conn.commit()
-        return True    
-        
+        return True
+    
     except Exception as e:
-        if conn:
-            conn.rollback() # Reverte em caso de erro no meio do processo
-        st.error(f"❌ Erro ao salvar no banco: {str(e)}")
+        st.error(f"❌ Erro crítico ao salvar: {e}")
         return False
-        
     finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
+        if cursor: cursor.close()
+        if conn: conn.close()
 
 # ==========================================================
 # 5. CONSULTAS IA E FEEDBACK

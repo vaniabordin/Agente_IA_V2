@@ -18,8 +18,8 @@ from utils.ia_manager import ia_manager_page
 from utils.consulta_resposta import aba_consulta_respostas
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
-current_dir = os.path.dirname(__file__)
-icon_path = os.path.join(current_dir, "assets", "icone_fcj.png")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+icon_path = os.path.join(BASE_DIR, "assets", "icone_fcj.png")
 
 st.set_page_config(
     page_title="Templates FCJ",    

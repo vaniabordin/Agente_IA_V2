@@ -56,10 +56,10 @@ def aba_consulta_respostas():
                        
                     # ---CAMINHO E DOWNLOAD ---#                                     
                     caminho_db = entrega['caminho_arquivo_aluno'] 
-                    # nome_fisico = os.path.basename(caminho_db)                   
-                    # O arquivo do aluno está em 'uploads/entregas_alunos'
-                    # caminho_completo = os.path.join("uploads", "entregas_alunos", nome_fisico)
-                    caminho_completo = os.path.join("uploads", "entregas_alunos", caminho_db)
+                    # Extrai apenas o nome do arquivo para evitar uploads/entregas_alunos duplicado
+                    nome_fisico = os.path.basename(caminho_db)
+                    caminho_completo = os.path.join("uploads", "entregas_alunos", nome_fisico)
+                    
                     if os.path.exists(caminho_completo):
                         try:
                             with open(caminho_completo, "rb") as f:

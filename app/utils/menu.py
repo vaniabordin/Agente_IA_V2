@@ -4,6 +4,10 @@ from utils.ia_chat import mentoria_ia_sidebar
 from login import logout
 
 def renderizar_menu():
+    # TRAVA DE SEGURANÇA: Se não houver usuário logado, não renderiza nada
+    if 'usuario_id' not in st.session_state:
+        return
+    
     with st.sidebar:
         # Caminho dinâmico para a logo (ajustado para funcionar de qualquer subpasta)
         # O caminho busca a pasta 'assets' na raiz do projeto

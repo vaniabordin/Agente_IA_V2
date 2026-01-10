@@ -3,11 +3,10 @@ import pandas as pd
 import mysql.connector
 import os
 import base64
+import time
 from datetime import datetime
 from utils.db import salvar_template_db, listar_templates_db, excluir_template, conectar
-# ---------------------------------
-# Insere Templates
-# ---------------------------------
+
 # --------------------------------
 # FUNÇÕES DE APOIO (LAYOUT)
 # --------------------------------
@@ -17,10 +16,10 @@ def criar_link_download_clean(caminho_arquivo, nome_exibicao):
     if not caminho_arquivo:
         return "<span style='color: gray;'>Não disponível</span>"
     
-   # Pega apenas o nome do arquivo para garantir que não haja caminhos duplicados
+    # Pega apenas o nome do arquivo para garantir que não haja caminhos duplicados
     nome_fisico = os.path.basename(caminho_arquivo)    
     # Localização correta: Raiz do Projeto -> assets -> templates
-    caminho_completo = os.path.join(os.getcwd(), "assets", "templates", nome_fisico)
+    caminho_completo = os.path.join(os.getcwd(), "assets_global", "templates", nome_fisico)
     
     if os.path.exists(caminho_completo):
         try:
@@ -66,6 +65,7 @@ def cria_templates_page():
                 key="widget_trimestre_select"
             )
         with col2:
+            # Mantemos o value vinculado ao session_state para EDIÇÃO
             nome_form = st.text_input(
                 "Descrição (Ex: 1.0 Diagnóstico)", 
                 value=st.session_state.ger_in_desc_val,
@@ -81,29 +81,28 @@ def cria_templates_page():
                 # Chama a lógica que está no db.py enviando os dados do layout
                 sucesso = salvar_template_db(nome_form, template, arquivo, st.session_state.ger_id_editando)
                 
+                
                 if sucesso:
-                    # Limpeza de estados após sucesso
-                    st.session_state.ger_in_desc_val = ""
-                    st.session_state.ger_sel_trim_index = 0
                     st.session_state.ger_id_editando = None
+                    st.session_state.ger_in_desc_val = "" # Limpa o campo de texto após salvar
+                    st.session_state.ger_sel_trim_index = 0 # Reseta o seletor para Q1
                     st.session_state.uploader_key += 1 
                     
                     st.success("✅ Operação realizada com sucesso!")
-                    st.rerun()
+                    time.sleep(1) 
+                    st.rerun()                    
             else:
                 st.warning("⚠️ Preencha a descrição do template.")
 
     st.write("") 
 
-    # --- SEÇÃO 2: LISTAGEM (TABELA COM AÇÕES - LAYOUT PRESERVADO) ---
+    # --- SEÇÃO 2: LISTAGEM (TABELA COM AÇÕES) ---
     st.subheader("📋 Templates Ativos no Sistema")
     
-    # Busca os dados através da função do db.py
     df_arq = listar_templates_db()
     
     if not df_arq.empty:
         with st.container(border=True):
-            # Larguras originais preservadas
             larguras = [0.5, 2.5, 0.8, 3, 1.2]
             h_col = st.columns(larguras)
             h_col[0].write("**ID**")
@@ -117,7 +116,7 @@ def cria_templates_page():
                 c = st.columns(larguras)
                 c[0].write(f"`{row['id']}`")
                 c[1].write(row['nome_formulario'])
-                c[2].write(row['template'])
+                c[2].write(row['trimestre'])
                 
                 link_html = criar_link_download_clean(row['caminho_arquivo'], row['nome_arquivo_original'])
                 c[3].markdown(link_html, unsafe_allow_html=True)
@@ -125,17 +124,15 @@ def cria_templates_page():
                 with c[4]:
                     btn_col1, btn_col2 = st.columns(2)
                     
-                    # Ação de Editar
                     if btn_col1.button("✏️", key=f"edit_{row['id']}", help="Editar template"):
+                        # Aqui é permitido alterar o estado porque o rerun acontece DEPOIS
                         st.session_state.ger_in_desc_val = row['nome_formulario']
                         st.session_state.ger_id_editando = row['id']
-                        if row['template'] in trimestres_opcoes:
-                            st.session_state.ger_sel_trim_index = trimestres_opcoes.index(row['template'])
+                        if row['trimestre'] in trimestres_opcoes:
+                            st.session_state.ger_sel_trim_index = trimestres_opcoes.index(row['trimestre'])
                         st.rerun()
 
-                    # Ação de Excluir
                     if btn_col2.button("🗑️", key=f"del_{row['id']}", help="Excluir template"):
-                        # Usa a função de delete que já existe no seu db.py
                         if excluir_template(row['id']):
                             st.toast("Template removido!")
                             st.rerun()

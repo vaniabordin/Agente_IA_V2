@@ -5,7 +5,6 @@ from openai import OpenAI
 import os
 import json
 import time
-import tempfile
 from utils.db import registrar_erro_ia, buscar_conhecimento_ia
 
 # ==========================================================
@@ -18,7 +17,6 @@ except Exception:
     st.error("Chave GEMINI_API_KEY ausente.")
 
 try:
-    # Cliente configurado para usar Meta AI (Llama 3 via Groq)
     client_meta = OpenAI(
         base_url="https://api.groq.com/openai/v1", 
         api_key=st.secrets["META_AI_API_KEY"]
@@ -26,7 +24,8 @@ try:
 except Exception:
     st.error("Chave META_AI_API_KEY ausente.")
     
-MODELO_DOCS = 'gemini-2.5-flash' 
+# Modelo atualizado conforme teste de sucesso
+MODELO_DOCS = 'models/gemini-2.5-flash' 
 MODELO_META = 'llama-3.3-70b-versatile'
 
 # ==========================================================
@@ -87,11 +86,11 @@ def mentoria_ia_sidebar():
                     model=MODELO_META,
                     messages=[
                         {"role": "system", "content": (
-                            f"Você é o co-piloto da FCJ. O usuário está na fase: {tema_atual}. "
-                            "Sua missão é impulsionar o usuário com uma energia contagiante e lúdica, sem perder o foco. "
+                            f"Você é o agente IA da FCJ. O usuário está na fase: {tema_atual}. "
+                            "Sua missão é impulsionar o usuário com uma energia contagiante, lúdica e objetiva, sem perder o foco. "
                             "DIRETRIZES: 1. Use metáforas de foguetes, ignição ou órbita. "
                             "2. Seja motivador: use exclamações e incentive a ação. "
-                            "3. Seja direto: responda em no máximo 3 frases curtas, unindo o conceito ao lúdico."
+                            "3. Seja direto: responda em no máximo 2 frases curtas, unindo o conceito ao lúdico."
                             f"Base de Conhecimento: {conhecimento}"
                         )},
                         {"role": "user", "content": prompt}
@@ -115,12 +114,10 @@ def mentoria_ia_sidebar():
 # 3. ANALISADOR DE DOCUMENTOS (USANDO GEMINI)
 # ==========================================================
 def analisar_documento_ia(upload_arquivo, nome_etapa):
-    """Análise técnica de arquivos usando Gemini Vision/Flash"""
+    """Análise técnica de arquivos usando Gemini - Flash"""
     try:
-        model = genai.GenerativeModel(MODELO_DOCS)
-        
-        # Prompt focado em extração de dados e completude
-        prompt = f"""
+        # 1. Definição do Prompt
+        prompt_instrucao = f"""
         Analise a completude do documento para a etapa: {nome_etapa}.
         Retorne APENAS um JSON:
         {{
@@ -132,51 +129,32 @@ def analisar_documento_ia(upload_arquivo, nome_etapa):
             "dicas": "Sugestão técnica"
         }}
         """
-        # TRATAMENTO PARA EXCEL
+        model = genai.GenerativeModel(MODELO_DOCS)
+        
         if upload_arquivo.name.endswith('.xlsx'):
             df = pd.read_excel(upload_arquivo)
-            conteudo_texto = df.to_string(index=False, max_rows=100) 
-            response = model.generate_content([prompt, f"Conteúdo do Excel:\n{conteudo_texto}"])            
-        
-        # TRATAMENTO PARA PDF/DOCX (API DE ARQUIVOS)
+            conteudo_texto = df.to_csv(index=False)
+            # Envio de texto para Excel (mais estável)
+            response = model.generate_content([prompt_instrucao, f"Conteúdo Excel: {conteudo_texto}"])
         else:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{upload_arquivo.name}") as tmp_file:
-                tmp_file.write(upload_arquivo.getbuffer())
-                temp_path = tmp_file.name
-                
-            try:      
-                      
-                uploaded_file = genai.upload_file(path=temp_path)
-                
-                while uploaded_file.state.name == "PROCESSING":
-                    time.sleep(1)
-                    uploaded_file = genai.get_file(uploaded_file.name)
-                
-                if uploaded_file.state.name == "FAILED":
-                    raise Exception("Gemini falhou ao processar o arquivo enviado.")
-                
-                response = model.generate_content([prompt, uploaded_file])
-               
-                uploaded_file.delete()
-            finally:
-                if os.path.exists(temp_path):
-                        os.remove(temp_path)
+            # Envio de binários (PDF/Imagens)
+            documento = {
+                "mime_type": upload_arquivo.type,
+                "data": upload_arquivo.getvalue()
+            }
+            response = model.generate_content([prompt_instrucao, documento])
 
-       # Limpeza e Parsing do JSON
-        raw_text = response.text
-        if "```json" in raw_text:
-            raw_text = raw_text.split("```json")[1].split("```")[0]
-        elif "```" in raw_text:
-            raw_text = raw_text.split("```")[1].split("```")[0]
-        
-        return json.loads(raw_text.strip())
+        # Limpeza robusta do JSON
+        texto_limpo = response.text.replace("```json", "").replace("```", "").strip()
+        return json.loads(texto_limpo)
 
     except Exception as e:
-        # Registrar o erro detalhado no seu banco para debug
         registrar_erro_ia(st.session_state.get("usuario_id"), nome_etapa, "Gemini_Analise", str(e))
         return {
             "porcentagem": 0, 
             "zona": "Erro", 
             "cor": "#FF4B4B", 
-            "feedback_ludico": f"Erro na análise: {str(e)}"
+            "feedback_ludico": f"Erro na análise: {str(e)}",
+            "perguntas_faltantes": [],
+            "dicas": "Verifique se o arquivo não está corrompido ou protegido por senha."
         }

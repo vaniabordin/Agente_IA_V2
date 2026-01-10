@@ -61,10 +61,7 @@ if not validar_acesso_q4(st.session_state.get("usuario_id")):
     with col_v2:
        if st.button("⬅️ Voltar para o Trimestre Q3", type="primary", use_container_width=True, key="btn_redirecionar_q3"):
             st.session_state["current_page"] = "q3_page"
-            try:
-                st.switch_page("pages/Trimestre Q3.py")
-            except Exception as e:                
-                st.error(f"Erro ao redirecionar: Certifique-se que o arquivo em 'pages/Trimestre Q3.py' existe.")
+            st.switch_page("pages/Trimestre Q3.py")
     st.stop()
 # --- 3. PÁGINA PRINCIPAL Q4 --- #
 def Q4_page():
@@ -130,7 +127,7 @@ def Q4_page():
                     st.markdown("#### 1. Preparação")
                        
                     nome_fisico = os.path.basename(temp['caminho_arquivo'])
-                    caminho_completo = os.path.join(os.getcwd(), "assets", "templates", nome_fisico)
+                    caminho_completo = os.path.join(os.getcwd(), "assets_global", "templates", nome_fisico)
                  
                     if not os.path.exists(caminho_completo):
                         st.error(f"Arquivo não encontrado no servidor: {nome_fisico}")

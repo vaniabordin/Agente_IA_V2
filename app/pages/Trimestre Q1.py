@@ -6,7 +6,8 @@ import plotly.graph_objects as go
 import pandas as pd
 from utils.db import (
     conectar, verificar_etapa_concluida, salvar_conclusao_etapa, 
-    salvar_entrega_e_feedback, buscar_ultimo_feedback_ia
+    salvar_entrega_e_feedback, buscar_ultimo_feedback_ia,
+    TEMPLATES_DIR
 )
 from utils.ia_chat import analisar_documento_ia, mentoria_ia_sidebar
 from utils.ui import aplicar_estilo_fcj
@@ -108,18 +109,18 @@ def Q1_page():
                     # --- DOWNLOAD (Ajustado para Assets/Templates) ---
                     st.markdown("#### 1. Preparação")
                     
+                    # Pega apenas o nome do arquivo do banco
                     nome_fisico = os.path.basename(temp['caminho_arquivo'])
-                    caminho_completo = os.path.join(os.getcwd(), "assets", "templates", nome_fisico)
-                                        
+                    caminho_completo = os.path.join(TEMPLATES_DIR, nome_fisico)
                     if not os.path.exists(caminho_completo):
                         st.error(f"Arquivo não encontrado no servidor: {nome_fisico}")
                     else:
-                        try:
+                        try:   
                             with open(caminho_completo, "rb") as f:
                                 templates_bytes = f.read()
                                 
                                 st.download_button(
-                                    label="⬇️ Baixar Template Modelo",
+                                    label="⬇️ Baixar Template",
                                     data=templates_bytes,
                                     file_name=temp['nome_arquivo_original'],
                                     mime="application/octet-stream",
@@ -128,7 +129,7 @@ def Q1_page():
                                 )
                         except Exception as e:
                             st.error(f"Erro ao processar download: {e}")
-                                       
+                                    
                     # --- UPLOAD E ANÁLISE ---
                     st.write("") 
                     st.markdown("#### 2. Entrega e Validação")
@@ -197,7 +198,7 @@ def Q1_page():
             etapa_liberada = concluida 
 
         # --- 3. PROGRESSO FINAL ---
-        total = len(templates)
+        total = len(templates)  
         concluidas = sum(lista_final_status)
         valor_progresso = concluidas / total if total > 0 else 0
 
@@ -214,10 +215,11 @@ def Q1_page():
 
     except Exception as e:
         st.error(f"Erro ao carregar página: {e}")
-    finally:
+    finally:           
         if conn and conn.is_connected():
-            cursor.close()
-            conn.close()
+                if 'cursor' in locals(): # Verifica se o cursor foi definido
+                    cursor.close()
+                conn.close()
 
 if __name__ == "__main__":
     Q1_page()

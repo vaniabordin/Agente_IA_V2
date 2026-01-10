@@ -55,7 +55,7 @@ if not validar_acesso_q2(st.session_state.get("usuario_id")):
 
     col_v1, col_v2, col_v3 = st.columns([2, 1, 2])
     with col_v2:
-        if st.button("⬅️ Voltar para o Q1", type="primary", use_container_width=True, key="btn_voltar_q1"):
+        if st.button("⬅️ Voltar para o Q1", type="primary",  use_container_width=True, key="btn_redirecionar_q2"):
             st.session_state["current_page"] = "q1_page" 
             st.switch_page("pages/Trimestre Q1.py")
     st.stop()
@@ -122,7 +122,7 @@ def Q2_page():
                     st.markdown("#### 1. Preparação")                    
                        
                     nome_fisico = os.path.basename(temp['caminho_arquivo'])
-                    caminho_completo = os.path.join(os.getcwd(), "assets", "templates", nome_fisico)
+                    caminho_completo = os.path.join(os.getcwd(), "assets_global", "templates", nome_fisico)
                  
                     if not os.path.exists(caminho_completo):
                         st.error(f"Arquivo não encontrado no servidor: {nome_fisico}")

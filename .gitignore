@@ -1,0 +1,12 @@
+# Ambientes Virtuais
+venv/
+venv_final/
+.env
+
+# Streamlit (Segurança)
+.streamlit/secrets.toml
+
+# Arquivos temporários e Cache
+__pycache__/
+*.py[cod]
+.DS_Store

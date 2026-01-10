@@ -13,9 +13,10 @@ if not os.path.exists(KNOWLEDGE_DIR):
     os.makedirs(KNOWLEDGE_DIR, exist_ok=True)
 
 def limpar_formulario():
-    # Esta função agora é chamada apenas via callback ou após st.rerun
-    st.session_state.form_descricao = ""
-    st.session_state.form_url_yt = ""    
+    # Esta função agora é chamada via callback ou após st.rerun
+    # Para evitar o erro de 'instantiated', limpamos apenas quando explicitamente clicado no botão Limpar
+    if "form_descricao" in st.session_state: st.session_state.form_descricao = ""
+    if "form_url_yt" in st.session_state: st.session_state.form_url_yt = ""    
     st.session_state.uploader_id += 1
 
 def ia_manager_page():
@@ -44,7 +45,7 @@ def ia_manager_page():
     with st.expander("➕ Adicionar Novo Material", expanded=True):
         tipo = st.radio("Tipo de Conteúdo:", ["Arquivo (PDF)", "Link do YouTube"], horizontal=True)
         
-        # Widget de texto
+        # Widget de texto - A descrição curta
         st.text_input("Descrição curta do material", placeholder="Ex: Manual de Metas Q3", key="form_descricao")
         
         if tipo == "Arquivo (PDF)":
@@ -53,7 +54,6 @@ def ia_manager_page():
             with col1:
                 btn_salvar = st.button("🚀 Processar e Salvar", type="primary", key="btn_save_pdf")
             with col2:
-                # Limpeza via botão direto
                 st.button("🧹 Limpar", key="btn_limpar_pdf", on_click=limpar_formulario)
 
             if btn_salvar:
@@ -74,19 +74,17 @@ def ia_manager_page():
                             sucesso, resultado, _ = processar_conteudo_ia(final_path, nome_para_db=upload.name)
                             
                             if sucesso:
-                                # Salvando no banco (TiDB/MySQL)
                                 if registrar_no_banco(upload.name, 'arquivo', final_path, st.session_state.form_descricao, resultado):
                                     st.success("✅ Documento indexado com sucesso!")
                                     time.sleep(1)
-                                    # CORREÇÃO: Limpamos o estado ANTES do rerun para evitar o erro de 'instantiated'
-                                    st.session_state.form_descricao = ""
+                                    # CORREÇÃO DEFINITIVA: Incrementamos o ID do uploader e forçamos rerun. 
+                                    # O rerun reinicia o estado dos widgets, limpando a tela sem gerar erro.
                                     st.session_state.uploader_id += 1
                                     st.rerun()
                             else:
                                 st.error(f"❌ Falha na IA: {resultado}")
                                 if os.path.exists(final_path): os.remove(final_path)
                     except Exception as e:
-                        # Se o erro de session_state persistisse, ele apareceria aqui
                         st.error(f"❌ Erro ao processar: {e}")
 
         else: # YouTube
@@ -106,8 +104,6 @@ def ia_manager_page():
                             if registrar_no_banco("Vídeo YouTube", 'youtube', url, st.session_state.form_descricao, resultado):
                                 st.success("✅ Conhecimento do vídeo extraído!")
                                 time.sleep(1)
-                                st.session_state.form_descricao = ""
-                                st.session_state.form_url_yt = ""
                                 st.rerun()
                         else:
                             st.error(f"❌ Erro no vídeo: {resultado}")

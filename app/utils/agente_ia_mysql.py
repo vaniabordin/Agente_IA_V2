@@ -1,21 +1,25 @@
 import os
 import streamlit as st
-import google.generativeai as genai
+import google.generativeai as genai 
 from youtube_transcript_api import YouTubeTranscriptApi
 import re
-import tempfile
+import time
 
 # ==========================================================
 # 1. CONFIGURAÇÃO GLOBAL (USANDO ST.SECRETS)
 # ==========================================================
 try:     
     API_KEY_GEMINI = st.secrets.get("GEMINI_API_KEY")
-    if API_KEY_GEMINI:
+    if API_KEY_GEMINI:        
+        # Configuração para a biblioteca estável google-generativeai
         genai.configure(api_key=API_KEY_GEMINI)
     else:
         st.error("Chave GEMINI_API_KEY não configurada.")
 except Exception as e:
     st.error(f"Erro ao configurar API: {e}")
+
+# Modelo que funcionou nos seus testes de terminal
+MODELO = 'models/gemini-2.5-flash'
 
 def extrair_id_youtube(url):
     """
@@ -37,10 +41,12 @@ def processar_conteudo_ia(origem_conteudo, nome_para_db=None):
     Retorna (Sucesso: bool, Conteudo_ou_Erro: str, Caminho_Salvo: str)
     """
     try:
-        # Modelo Gemini  
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        # Modelo Gemini          
         conteudo_extraido = ""
         caminho_final_banco = None
+        
+        # Inicializa o modelo conforme biblioteca estável
+        model = genai.GenerativeModel(MODELO)
 
         # --- FLUXO ARQUIVO (UploadedFile do Streamlit ou Path) ---
         if hasattr(origem_conteudo, 'name') or (isinstance(origem_conteudo, str) and os.path.exists(origem_conteudo)):
@@ -60,12 +66,21 @@ def processar_conteudo_ia(origem_conteudo, nome_para_db=None):
                 
                 caminho_final_banco = caminho_salvamento
                 arquivo_para_processar = caminho_salvamento
+                
             else:
                 arquivo_para_processar = origem_conteudo
                 caminho_final_banco = origem_conteudo
-
-            # Upload para o Google Gemini
+             
+            # Upload para o Google Gemini usando a File API estável
             documento = genai.upload_file(path=arquivo_para_processar)
+            
+            # Aguarda o processamento do arquivo no servidor
+            while documento.state.name == "PROCESSING":
+                time.sleep(2)
+                documento = genai.get_file(documento.name)
+
+            if documento.state.name == "FAILED":
+                raise Exception("Falha ao processar arquivo no servidor do Google.")
             
             prompt = (
                 f"Extraia todo o conteúdo textual do documento. "
@@ -73,11 +88,12 @@ def processar_conteudo_ia(origem_conteudo, nome_para_db=None):
                 "de uma IA acadêmica. Mantenha a fidelidade aos dados."
             )
                         
+            # Chamada de geração corrigida para a biblioteca estável
             response = model.generate_content([prompt, documento])
             conteudo_extraido = response.text
             
-            # Deleta o arquivo do servidor do Google
-            documento.delete()
+            # Deleta o arquivo do servidor do Google para limpar cota
+            genai.delete_file(documento.name)
 
         # --- FLUXO YOUTUBE (URL) ---
         elif isinstance(origem_conteudo, str) and ("youtube.com" in origem_conteudo or "youtu.be" in origem_conteudo):
@@ -98,18 +114,20 @@ def processar_conteudo_ia(origem_conteudo, nome_para_db=None):
                     "Não resuma drasticamente; preserve os ensinamentos técnicos.\n\n"
                     f"TRANSCRIÇÃO:\n{texto_transcrito}"
                 )
+
                 response = model.generate_content(prompt)
                 conteudo_extraido = response.text
-
+                
             except Exception:
-                # Fallback: Caso não haja legenda, tenta análise visual (se disponível no modelo)
+                # Fallback: Caso não haja legenda, tenta análise visual pelo prompt
                 prompt_fallback = (
-                    f"Analise o vídeo no link {origem_conteudo}. "
+                    f"Analise o conteúdo do vídeo no link {origem_conteudo}. "
                     "Descreva detalhadamente todos os pontos ensinados para criar uma base de conhecimento."
                 )
+                
                 response = model.generate_content(prompt_fallback)
                 conteudo_extraido = response.text
-            
+             
         else:
             return False, "Origem de conteúdo não suportada.", None
 

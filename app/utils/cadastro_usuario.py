@@ -1,24 +1,17 @@
 import streamlit as st
 import pandas as pd
 import time
-import os  # Adicionado para reconhecer as variáveis de ambiente
-from dotenv import load_dotenv  # Adicionado para ler o arquivo .env
+import os
+from dotenv import load_dotenv
 from utils.db import conectar, cadastrar_usuario_db, remover_usuario_db
-from sqlalchemy import create_engine
 
-# Carrega as variáveis do arquivo .env que foi configurado
+# ==========================================================
+# 1. CONFIGURAÇÃO DE CREDENCIAIS (HÍBRIDO: LOCAL/CLOUD)
+# ==========================================================
 load_dotenv()
-# Pega as credenciais do .env
-DB_USER = os.getenv("DB_USER")
-DB_PASS = os.getenv("DB_PASS")
-DB_HOST = os.getenv("DB_HOST")
-DB_NAME = os.getenv("DB_NAME")
-
-# Cria o engine corretamente para o SQLAlchemy
-engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}")
 
 def exibir_usuarios_admin():
-    # --- AJUSTE DE CSS PARA PADRONIZAÇÃO ---
+    # --- ESTILIZAÇÃO CSS PRESERVADA ---
     st.markdown("""
         <style>
         div.stButton > button[kind="primary"] {
@@ -32,7 +25,7 @@ def exibir_usuarios_admin():
 
     st.subheader("➕ Cadastrar Novo Usuário")
     
-    # Usa container em vez de form para ter mais controle sobre o fluxo da mensagem
+    # --- FORMULÁRIO DE CADASTRO ---
     with st.container(border=True):
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -42,7 +35,6 @@ def exibir_usuarios_admin():
         with col3:
             novo_role = st.selectbox("Perfil", ["aluno", "admin"], key="cad_role")
         
-        # Colunas para alinhar o botão à esquerda
         c_btn, _, _ = st.columns([1, 1, 2])
         with c_btn:
             btn_salvar = st.button("Salvar Usuário", type="primary")
@@ -52,7 +44,8 @@ def exibir_usuarios_admin():
                 sucesso, msg = cadastrar_usuario_db(novo_user, nova_senha, novo_role)
                 if sucesso:
                     st.success(f"✅ {msg}")                   
-                    time.sleep(1.5) # Tempo para o usuário ver a mensagem antes de atualizar
+                    time.sleep(1.2)
+                    # O rerun limpa os campos automaticamente resetando os widgets pela 'key'
                     st.rerun()
                 else:
                     st.error(msg)
@@ -61,16 +54,18 @@ def exibir_usuarios_admin():
 
     st.divider()
 
-    # --- LISTA DE USUÁRIOS ---
+    # --- LISTA DE USUÁRIOS (LAYOUT PRESERVADO) ---
     st.subheader("📋 Usuários Cadastrados")
-    conn = conectar()
+    
+    conn = conectar() # Usa sua função padrão de conexão para testar disponibilidade
     if conn:
         try:
             query = "SELECT id, username, role, ativo FROM usuarios ORDER BY username ASC"
-            df_users = pd.read_sql(query, engine)
+            # O pandas usa o engine SQLAlchemy para converter SQL em DataFrame
+            df_users = pd.read_sql(query, conn)
             
             if not df_users.empty:
-                # Cabeçalho
+                # Cabeçalho da Tabela
                 h1, h2, h3, h4 = st.columns([0.3, 0.3, 0.2, 0.2])
                 h1.markdown("**Usuário**")
                 h2.markdown("**Perfil**")
@@ -83,15 +78,22 @@ def exibir_usuarios_admin():
                     c1.write(f"👤 {row['username']}")
                     c2.write(row['role'])
                     c3.write("✅ Ativo" if row['ativo'] else "❌ Inativo")
+                    
                     with c4:
-                        if row['username'] == "master":
-                            st.button("🔒", key=f"lock_{row['id']}", disabled=True)
+                        # Proteção para o usuário master não ser deletado por acidente
+                        if row['username'].lower() == "master":
+                            st.button("🔒", key=f"lock_{row['id']}", disabled=True, help="Usuário mestre")
                         else:
                             if st.button("🗑️", key=f"user_del_{row['id']}"):
-                                remover_usuario_db(row['id'], row['username'])
-                                st.rerun()
+                                if remover_usuario_db(row['id'], row['username']):
+                                    st.toast(f"Usuário {row['username']} removido!")
+                                    time.sleep(0.5)
+                                    st.rerun()
+                    
                     st.markdown('<hr style="margin: 0.5rem 0; opacity: 0.1;">', unsafe_allow_html=True)
             else:
                 st.info("Nenhum usuário encontrado.")
         except Exception as e:
-         st.error(f"Erro ao conectar no banco: {e}")
+            st.error(f"Erro ao processar lista de usuários: {e}")
+        finally:
+            conn.close() # Importante para não travar o banco

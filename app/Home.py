@@ -38,18 +38,21 @@ if "authenticated" not in st.session_state:
 
 # SE NÃO ESTIVER AUTENTICADO: Login
 if not st.session_state["authenticated"]:
+    # Mantemos o CSS para esconder o menu lateral
     st.markdown("""
         <style>
-            [data-testid="stSidebar"] { display: none !important; }
-            [data-testid="stSidebarCollapseButton"] { display: none !important; }
-            [data-testid="stHeader"] { display: none !important; }
+            [data-testid="stSidebar"], [data-testid="stSidebarCollapseButton"], [data-testid="stHeader"] { 
+                display: none !important; 
+            }
         </style>
     """, unsafe_allow_html=True)
     
     col_l, col_c, col_r = st.columns([1, 1.2, 1])
     with col_c: 
-        login()
-    st.stop() 
+        # Adiciona a mensagem de carregamento antes de chamar o formulário
+        with st.spinner("🚀 Carregando sistema..."):
+            login()
+    st.stop()
 
 # --- 3. CONFIGURAÇÃO PARA USUÁRIOS LOGADOS ---
 aplicar_estilo_fcj()
@@ -74,7 +77,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- FUNÇÕES DE APOIO ---
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def calcular_progresso_trimestre(user_id, trimestre):
     conn = conectar()
     if not conn:
@@ -119,11 +122,11 @@ def render_card_trimestre(titulo, progresso, pagina, status_bloqueado=False):
 if st.session_state["role"] == "admin":
     titulos_abas = ["🏠 Home", "📁 Inserir Templates", "🧠 Inserir Conhecimento", "📝 Consulta de Respostas", "👥 Usuários"]
 else:
-    titulos_abas = ["🏠 Dashboard"]
+    titulos_abas = ["🏠 Home"]
 
 abas = st.tabs(titulos_abas)
 
-# --- ABA: HOME / DASHBOARD ---
+# --- ABA: HOME ---
 with abas[0]:
     if st.session_state["role"] == "aluno":      
         st.title(f"🚀 Olá, {st.session_state['user']}!")

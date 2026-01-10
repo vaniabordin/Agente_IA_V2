@@ -18,14 +18,26 @@ from utils.ia_manager import ia_manager_page
 from utils.consulta_resposta import aba_consulta_respostas
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
+# Pega o caminho absoluto da pasta onde este arquivo (Home.py) está
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Monta o caminho para a imagem ignorando a pasta "app" no join, 
+# pois o BASE_DIR já aponta para dentro dela
 icon_path = os.path.join(BASE_DIR, "assets", "icone_fcj.png")
 
-st.set_page_config(
-    page_title="Templates FCJ",    
-    layout="wide",
-    page_icon=icon_path     
-)
+# Tente carregar a configuração. Se a imagem falhar, o app não trava.
+try:
+    st.set_page_config(
+        page_title="Templates FCJ",
+        layout="wide",
+        page_icon=icon_path
+    )
+except Exception:
+    # Caso a imagem ainda dê erro, carrega sem ícone para o app não parar
+    st.set_page_config(
+        page_title="Templates FCJ",
+        layout="wide"
+    )
 
 # --- 2. INICIALIZAÇÃO E CONTROLE DE ACESSO ---
 
